@@ -1,123 +1,95 @@
+# Whats my Bitrate? - Audio Analysis and HTML Report Generator
 
-# 🎵 Whatsmybitrate v0.1: Audio Quality Analysis Tool
+This Python script analyzes audio files, generates spectrograms, and creates an HTML report summarizing the analysis. The report includes detailed metadata, frequency analysis, and visual spectrograms for each input audio file.
 
-This Python script analyzes audio files to determine their quality, detect recompression, and identify their original quality (e.g., 128 kbps, 192 kbps, 256 kbps). It supports popular audio formats like **MP3**, **AAC**, **FLAC**, **WAV**, and **AIFF**.
+## Features
 
-## ✨ Features
-
-- **Metadata Analysis**: Extracts codec, bitrate, and sample rate using `ffprobe`.
-- **Frequency Spectrum Analysis**: Generates a spectrum image using `ffmpeg` and analyzes maximum frequency.
-- **Quality Determination**:
-  - Detects high-quality, low-quality, and recompressed files.
-  - Accurately outputs the actual quality (e.g., `Detected Quality: 224 kbps`).
-- **Wildcard Support (`*`)**: Analyze all files in a directory without requiring quotes.
-- **Output to File (`-f`)**: Save results to a specified output file.
-
-## 📋 Requirements
-
-- **Python**: Version 3.8 or newer.
-- **FFmpeg**: Required for metadata and spectrum analysis.
-- **Pillow**: Required for image processing.
-
-## 🛠 Installation
-
-### Install Python
-
-Ensure Python 3.8+ is installed:
-
-```bash
-python3 --version
-```
-
-If not installed, [download Python](https://www.python.org/downloads/).
+- Supports multiple audio formats: `wav`, `flac`, `mp3`, `aac`, `ogg`, `m4a`, `aiff`.
+- Extracts metadata such as codec, sample rate, channels, and bitrate using `ffprobe`.
+- Generates spectrograms for each audio file.
+- Outputs an HTML report with:
+  - Audio metadata
+  - Visual spectrograms
+  - Organized and clean layout
 
 ---
 
-### Install Required Libraries
+## Prerequisites
 
-Install necessary Python libraries:
+### Python Version
+- **Python 3.8+** is required. For Python 3.6 or 3.7, see [compatibility with older Python versions](#compatibility-with-older-python-versions).
 
+### Dependencies
+Install the required Python libraries using:
 ```bash
-pip install pillow
+pip install -r requirements.txt
 ```
 
 ---
 
-### Install FFmpeg
+## Usage
 
-Install FFmpeg using your system’s package manager:
+### Running the Script
 
-- **macOS**:
-  ```bash
-  brew install ffmpeg
-  ```
-- **Ubuntu/Debian**:
-  ```bash
-  sudo apt install ffmpeg
-  ```
-- **CentOS/Red Hat**:
-  ```bash
-  sudo yum install epel-release -y
-  sudo yum install ffmpeg -y
-  ```
-- **Windows**:  
-  [Download FFmpeg](https://ffmpeg.org/download.html) and add it to your PATH.
+1. **Command Syntax**:
+   ```bash
+   python script.py -f <output_file.html> <audio_files>
+   ```
+   Replace `<output_file.html>` with the name of your desired HTML report and `<audio_files>` with the audio file(s) or patterns you want to analyze.
 
----
-
-## 🚀 Usage
-
-Run the script with an audio file or directory:
-
-### Analyze a Single Audio File:
-```bash
-python3 whatsmybitrate.py example.mp3
-```
-
-### Analyze Multiple Files Without Quotes:
-```bash
-python3 whatsmybitrate.py *.mp3
-```
-
-### Analyze All Files in a Specific Directory:
-```bash
-python3 whatsmybitrate.py /path/to/directory
-```
-
-### Output Results to a File:
-```bash
-python3 whatsmybitrate.py *.mp3 -f results.txt
-```
+2. **Examples**:
+   - Analyze all `.wav` files and save the report as `results.html`:
+     ```bash
+     python script.py -f results.html "*.wav"
+     ```
+   - Analyze `.mp3` and `.wav` files together:
+     ```bash
+     python script.py -f audio_report.html "*.wav" "*.mp3"
+     ```
 
 ---
 
-## 📝 Example Output
+## Example Output
 
-```plaintext
-Analyzing: example.mp3
-Audio Quality Analysis for example.mp3:
-Codec: mp3
-Bitrate: 224 kbps
-Sample Rate: 44100 Hz
-Maximum Frequency: 17000 Hz
-Determined Quality: Detected Quality: 224 kbps
-```
+After running the script, an HTML file (e.g., `results.html`) will be generated. Open it in any modern web browser to view the following:
+
+- A cleanly formatted table of metadata for each audio file.
+- Spectrogram images illustrating the audio's frequency and time distribution.
 
 ---
 
-## Key Improvements
+## Compatibility with Older Python Versions
 
-1. **Wildcard Support**:
-   - No need to wrap `*` in quotes. Just pass `*.mp3` or similar patterns directly.
-2. **Accurate Quality Detection**:
-   - Outputs specific detected quality (e.g., `Detected Quality: 224 kbps`) instead of "Unknown or recompressed."
-3. **Streamlined File Output**:
-   - Use the `-f` flag to write results to a specified file.
+If you're using **Python 3.6 or 3.7**, use the following `requirements.txt`:
+```
+librosa==0.8.1
+matplotlib==3.5.3
+numpy==1.21.6
+```
+
+Install the dependencies with:
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
 ## Notes
 
-- **FFmpeg version 4.0+** is recommended.
-- The script can identify recompressed files and estimate their original quality.
-- Spectrum images are generated as `.png` files for each analyzed audio file.
+1. Ensure `ffprobe` (part of `ffmpeg`) is installed and available in your system's PATH.
+   - On Ubuntu/Debian:
+     ```bash
+     sudo apt install ffmpeg
+     ```
+   - On macOS:
+     ```bash
+     brew install ffmpeg
+     ```
+
+2. Large audio files may take longer to process. Ensure sufficient disk space for spectrogram images.
+
+---
+
+## License
+
+This project is licensed under the MIT License.
