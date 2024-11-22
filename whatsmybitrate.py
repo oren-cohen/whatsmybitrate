@@ -27,7 +27,7 @@ def extract_metadata(file_path):
         ffprobe_cmd = [
             "ffprobe", "-v", "error",
             "-select_streams", "a:0",
-            "-show_entries", "stream=bit_rate,codec_name,sample_rate,channels",
+            "-show_entries", "stream=bit_rate,codec_name,sample_rate,channels,sample_fmt",
             "-of", "json", file_path
         ]
         result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -38,10 +38,22 @@ def extract_metadata(file_path):
         codec = stream.get("codec_name", "Unknown")
         sample_rate = int(stream.get("sample_rate", 0))
         channels = int(stream.get("channels", 1))
-        return bit_rate, codec, sample_rate, channels
+        sample_fmt = stream.get("sample_fmt", "s16")  # Default to 16-bit
+        
+        # Detect bit depth based on sample format
+        if "s32" in sample_fmt:
+            bit_depth = 32
+        elif "s24" in sample_fmt:
+            bit_depth = 24
+        elif "s16" in sample_fmt:
+            bit_depth = 16
+        else:
+            bit_depth = 16  # Default to 16-bit if unknown
+
+        return bit_rate, codec, sample_rate, channels, bit_depth
     except Exception as e:
         print(f"Error extracting metadata: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
 
 def calculate_lossless_bitrate(sample_rate, bit_depth, channels):
@@ -49,21 +61,46 @@ def calculate_lossless_bitrate(sample_rate, bit_depth, channels):
     return (sample_rate * bit_depth * channels) / 1000  # Convert to kbps
 
 
-def estimate_actual_bitrate(codec, max_frequency, sample_rate=None, channels=None):
+def estimate_actual_bitrate(codec, max_frequency, sample_rate=None, channels=None, bit_depth=None):
     """Estimate the actual bitrate based on codec, frequency, and audio properties."""
-    if not sample_rate:
-        sample_rate = 48000  # Default sample rate if not provided
-    nyquist = sample_rate / 2  # Nyquist frequency
+    if not sample_rate or not channels or not bit_depth:
+        # Can't calculate bitrate without these parameters
+        return "Unknown"
 
-    # Normalize max frequency as a percentage of Nyquist frequency
+    nyquist = sample_rate / 2  # Nyquist frequency
     frequency_ratio = max_frequency / nyquist
 
-    if codec in ["mp3", "aac", "ogg", "m4a"]:
-        # Low-pass filtering heuristic for 128 kbps
+    # For lossless codecs, calculate actual bitrate directly based on bit depth
+    if codec in ["wav", "flac", "aiff", "pcm_s16le", "pcm_s24le", "pcm_s32le"]:
+        actual_bitrate = (sample_rate * bit_depth * channels) / 1000  # Convert to kbps
+
+        # Check if the max frequency is significantly lower than the Nyquist frequency
+        if max_frequency < nyquist * 0.9:
+            # Possible re-encoded from lossy source
+            # Use the frequency ratio to estimate original lossy bitrate
+            if max_frequency < 17000 and frequency_ratio >= 0.45:
+                return "128 kbps (Re-encoded)"
+            elif frequency_ratio >= 0.75:
+                return "320 kbps (Re-encoded)"
+            elif frequency_ratio >= 0.60:
+                return "256 kbps (Re-encoded)"
+            elif frequency_ratio >= 0.45:
+                return "192 kbps (Re-encoded)"
+            elif frequency_ratio >= 0.30:
+                return "128 kbps (Re-encoded)"
+            elif frequency_ratio >= 0.20:
+                return "<128 kbps (Re-encoded)"
+            else:
+                return "Very Low (<96 kbps) (Re-encoded)"
+        else:
+            # High max frequency, assume truly lossless
+            return f"{actual_bitrate:.2f} kbps"
+
+    # Handle lossy formats (MP3, AAC, OGG, etc.)
+    elif codec in ["mp3", "aac", "ogg", "m4a"]:
         if max_frequency < 17000 and frequency_ratio >= 0.45:
             return "128 kbps"
-        # Adjust thresholds based on normalized frequency ratio
-        if frequency_ratio >= 0.75:  # Relaxed threshold for 320 kbps
+        elif frequency_ratio >= 0.75:
             return "320 kbps"
         elif frequency_ratio >= 0.60:
             return "256 kbps"
@@ -75,13 +112,9 @@ def estimate_actual_bitrate(codec, max_frequency, sample_rate=None, channels=Non
             return "<128 kbps"
         else:
             return "Very Low (<96 kbps)"
-    elif codec in ["wav", "flac", "aiff", "pcm_s16le", "pcm_s24le", "pcm_s32le"]:
-        bit_depth = 16 if "16le" in codec else 24 if "24le" in codec else 32
-        actual_bitrate = calculate_lossless_bitrate(sample_rate, bit_depth, channels)
-        return f"{actual_bitrate:.2f} kbps"
     else:
         return "Unknown Format"
-
+    
 def generate_spectrogram(file_path):
     """Generate a spectrogram and save it as a PNG."""
     try:
@@ -207,9 +240,10 @@ def main():
 
         print(f"Analyzing {file_path}...")
 
-        stated_bitrate, codec, sample_rate, channels = extract_metadata(file_path)
+        # Update unpacking to match the 5 values returned from extract_metadata
+        stated_bitrate, codec, sample_rate, channels, bit_depth = extract_metadata(file_path)
         max_freq = analyze_audio(file_path)
-        estimated_bitrate = estimate_actual_bitrate(codec, max_freq, sample_rate, channels)
+        estimated_bitrate = estimate_actual_bitrate(codec, max_freq, sample_rate, channels, bit_depth)
         spectrogram_file = generate_spectrogram(file_path)
 
         results.append({
