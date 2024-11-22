@@ -1,5 +1,5 @@
 import os
-import glob 
+import glob
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
@@ -51,16 +51,27 @@ def calculate_lossless_bitrate(sample_rate, bit_depth, channels):
 
 def estimate_actual_bitrate(codec, max_frequency, sample_rate=None, channels=None):
     """Estimate the actual bitrate based on codec, frequency, and audio properties."""
+    if not sample_rate:
+        sample_rate = 48000  # Default sample rate if not provided
+    nyquist = sample_rate / 2  # Nyquist frequency
+
+    # Normalize max frequency as a percentage of Nyquist frequency
+    frequency_ratio = max_frequency / nyquist
+
     if codec in ["mp3", "aac", "ogg", "m4a"]:
-        if max_frequency >= 20000:
-            return "320 kbps"
-        elif max_frequency >= 19000:
-            return "256 kbps"
-        elif max_frequency >= 16000:
-            return "192 kbps"
-        elif max_frequency >= 15000:
+        # Low-pass filtering heuristic for 128 kbps
+        if max_frequency < 17000 and frequency_ratio >= 0.45:
             return "128 kbps"
-        elif max_frequency >= 12000:
+        # Adjust thresholds based on normalized frequency ratio
+        if frequency_ratio >= 0.75:  # Relaxed threshold for 320 kbps
+            return "320 kbps"
+        elif frequency_ratio >= 0.60:
+            return "256 kbps"
+        elif frequency_ratio >= 0.45:
+            return "192 kbps"
+        elif frequency_ratio >= 0.30:
+            return "128 kbps"
+        elif frequency_ratio >= 0.20:
             return "<128 kbps"
         else:
             return "Very Low (<96 kbps)"
@@ -71,20 +82,26 @@ def estimate_actual_bitrate(codec, max_frequency, sample_rate=None, channels=Non
     else:
         return "Unknown Format"
 
-
 def generate_spectrogram(file_path):
     """Generate a spectrogram and save it as a PNG."""
     try:
         y, sr = librosa.load(file_path, sr=None)
-        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=sr / 2)
+        
+        # Use Nyquist frequency (sr / 2) as the maximum frequency for the spectrogram
+        nyquist = sr / 2
+
+        # Create Mel spectrogram
+        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=nyquist)
         S_dB = librosa.power_to_db(S, ref=np.max)
 
+        # Generate plot
         plt.figure(figsize=(10, 4))
-        librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel', fmax=sr / 2, cmap='coolwarm')
+        librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel', fmax=nyquist, cmap='coolwarm')
         plt.colorbar(format='%+2.0f dB')
-        plt.title('Mel-frequency spectrogram')
+        plt.title(f'Mel-frequency spectrogram (up to {nyquist:.2f} Hz)')
         plt.tight_layout()
 
+        # Save plot to file
         output_image = generate_random_filename()
         plt.savefig(output_image)
         plt.close()
