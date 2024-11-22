@@ -1,5 +1,5 @@
 
-# 🎵 whatsmybitrate v0.1: Audio Quality Analysis Tool (Updated)
+# 🎵 Whatsmybitrate v0.1: Audio Quality Analysis Tool
 
 This Python script analyzes audio files to determine their quality, detect recompression, and identify their original quality (e.g., 128 kbps, 192 kbps, 256 kbps). It supports popular audio formats like **MP3**, **AAC**, **FLAC**, **WAV**, and **AIFF**.
 
@@ -71,22 +71,22 @@ Run the script with an audio file or directory:
 
 ### Analyze a Single Audio File:
 ```bash
-python3 audio_quality_v0.1.py example.mp3
+python3 whatsmybitrate_v0.1.py example.mp3
 ```
 
 ### Analyze Multiple Files Without Quotes:
 ```bash
-python3 audio_quality_v0.1.py *.mp3
+python3 whatsmybitrate_v0.1.py *.mp3
 ```
 
 ### Analyze All Files in a Specific Directory:
 ```bash
-python3 audio_quality_v0.1.py /path/to/directory
+python3 whatsmybitrate_v0.1.py /path/to/directory
 ```
 
 ### Output Results to a File:
 ```bash
-python3 audio_quality_v0.1.py *.mp3 -f results.txt
+python3 whatsmybitrate_v0.1.py *.mp3 -f results.txt
 ```
 
 ---
