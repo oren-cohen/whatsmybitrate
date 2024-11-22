@@ -71,22 +71,22 @@ Run the script with an audio file or directory:
 
 ### Analyze a Single Audio File:
 ```bash
-python3 whatsmybitrate_v0.1.py example.mp3
+python3 whatsmybitrate.py example.mp3
 ```
 
 ### Analyze Multiple Files Without Quotes:
 ```bash
-python3 whatsmybitrate_v0.1.py *.mp3
+python3 whatsmybitrate.py *.mp3
 ```
 
 ### Analyze All Files in a Specific Directory:
 ```bash
-python3 whatsmybitrate_v0.1.py /path/to/directory
+python3 whatsmybitrate.py /path/to/directory
 ```
 
 ### Output Results to a File:
 ```bash
-python3 whatsmybitrate_v0.1.py *.mp3 -f results.txt
+python3 whatsmybitrate.py *.mp3 -f results.txt
 ```
 
 ---
