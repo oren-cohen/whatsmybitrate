@@ -1,4 +1,4 @@
-# Audio Analysis and HTML Report Generator
+# Whats my Bitrate? - Audio Analysis and HTML Report Generator
 
 This Python script analyzes audio files, generates spectrograms, and creates an HTML report summarizing the analysis. The report includes detailed metadata, frequency analysis, and visual spectrograms for each input audio file.
 
