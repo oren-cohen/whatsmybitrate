@@ -1,5 +1,5 @@
 
-# 🎵 Python v0.1: Audio Quality Analysis Tool (Updated)
+# 🎵 whatsmybitrate v0.1: Audio Quality Analysis Tool (Updated)
 
 This Python script analyzes audio files to determine their quality, detect recompression, and identify their original quality (e.g., 128 kbps, 192 kbps, 256 kbps). It supports popular audio formats like **MP3**, **AAC**, **FLAC**, **WAV**, and **AIFF**.
 
