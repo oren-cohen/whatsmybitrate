@@ -1,132 +1,144 @@
-# Whats my Bitrate? - Audio Analysis and HTML Report Generator
 
-This Python script analyzes audio files, generates spectrograms, and creates an HTML report summarizing the analysis. The report includes detailed metadata, frequency analysis, and visual spectrograms for each input audio file.
+# Whats My Bitrate? - Audio Analysis Tool
 
-## Features
+This tool analyzes audio files to estimate their actual bitrate based on the maximum significant frequency present in the signal. It generates spectrograms for each file and compiles the results into an HTML report.
 
-- Supports multiple audio formats: `wav`, `flac`, `mp3`, `aac`, `ogg`, `m4a`, `aiff`.
-- Extracts metadata such as codec, sample rate, channels, and bitrate using `ffprobe`.
-- Generates spectrograms for each audio file.
-- Outputs an HTML report with:
-  - Audio metadata
-  - Visual spectrograms
-  - Organized and clean layout.
+## Table of Contents
 
----
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Basic Usage](#basic-usage)
+  - [Multithreading](#multithreading)
+- [Examples](#examples)
+- [Script Overview](#script-overview)
+- [Dependencies](#dependencies)
+- [Limitations](#limitations)
+- [License](#license)
 
 ## Prerequisites
 
-### Python Version
-- **Python 3.7 or newer** is required to run this script.
+- **Python 3.6 or higher**
+- **ffmpeg**: Required for extracting audio metadata.
 
-Python 3.7 introduced many modern features and optimizations that this script utilizes, including enhanced support for data structures and asynchronous operations. While the script runs best with Python 3.8 or newer, it remains compatible with Python 3.7. Ensure your environment is updated to avoid compatibility issues.
+  Install ffmpeg:
 
-### Dependencies
-Install the required Python libraries using:
-```bash
-pip install -r requirements.txt
-```
+  - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add it to your system PATH.
+  - **macOS**: Install via Homebrew:
 
-### System Requirements
-- **Linux, macOS, or Windows**.
-- `ffprobe` (part of `ffmpeg`) must be installed and available in your system's PATH.
+    ```bash
+    brew install ffmpeg
+    ```
 
----
+  - **Linux**: Install via package manager:
 
-## Installation Instructions
+    ```bash
+    sudo apt-get install ffmpeg
+    ```
 
-### On Linux (Ubuntu/Debian)
-1. Install Python:
+## Installation
+
+1. **Clone the repository or download the script** to your local machine.
+
+2. **Install required Python packages**:
+
    ```bash
-   sudo apt update
-   sudo apt install python3 python3-pip
+   pip install librosa numpy matplotlib tqdm
    ```
-2. Install `ffmpeg`:
-   ```bash
-   sudo apt install ffmpeg
-   ```
-
-### On macOS
-1. Install Python using Homebrew:
-   ```bash
-   brew install python
-   ```
-2. Install `ffmpeg`:
-   ```bash
-   brew install ffmpeg
-   ```
-
-### On Windows
-1. Download and install Python:
-   - Visit the [Python website](https://www.python.org/downloads/) and download Python 3.7 or newer.
-   - During installation, check **"Add Python to PATH"**.
-2. Install `ffmpeg`:
-   - Download `ffmpeg` from the [official website](https://ffmpeg.org/download.html).
-   - Extract the files and add the `bin` directory to your system's PATH:
-     1. Open **System Properties** > **Environment Variables**.
-     2. Add the `bin` directory of the extracted `ffmpeg` to the PATH variable.
-
-3. Verify installation:
-   ```bash
-   ffprobe -version
-   ```
-
----
 
 ## Usage
 
-### Running the Script
+### Basic Usage
 
-1. **Command Syntax**:
-   ```bash
-   python script.py -f <output_file.html> <audio_files>
-   ```
-   Replace `<output_file.html>` with the name of your desired HTML report and `<audio_files>` with the audio file(s) or patterns you want to analyze.
+Run the script from the command line, specifying the output HTML file and the input audio files or patterns.
 
-2. **Examples**:
-   - Analyze all `.wav` files and save the report as `results.html`:
-     ```bash
-     python script.py -f results.html "*.wav"
-     ```
-   - Analyze `.mp3` and `.wav` files together:
-     ```bash
-     python script.py -f audio_report.html "*.wav" "*.mp3"
-     ```
-
----
-
-## Example Output
-
-After running the script, an HTML file (e.g., `results.html`) will be generated. Open it in any modern web browser to view the following:
-
-- A cleanly formatted section of metadata for each audio file.
-- Spectrogram images illustrating the audio's frequency and time distribution.
-
----
-
-## Notes
-
-1. Ensure `ffprobe` (part of `ffmpeg`) is installed and available in your system's PATH.
-2. Large audio files may take longer to process. Ensure sufficient disk space for spectrogram images.
-
----
-
-## Compatibility with Older Python Versions
-
-If you're using **Python 3.6 or 3.7**, use the following `requirements.txt`:
-```
-librosa==0.8.1
-matplotlib==3.5.3
-numpy==1.21.6
-```
-
-Install the dependencies with:
 ```bash
-pip install -r requirements.txt
+python audio_analysis.py -f results.html input_files
 ```
 
----
+- `-f results.html`: Specifies the name of the output HTML report.
+- `input_files`: One or more audio files or glob patterns (e.g., `*.wav`, `*.mp3`).
+
+**Example:**
+
+```bash
+python audio_analysis.py -f report.html *.wav *.mp3
+```
+
+### Multithreading
+
+To speed up the analysis of multiple files, you can enable multithreading by specifying the number of threads with the `-m` option.
+
+```bash
+python audio_analysis.py -f results.html -m 4 input_files
+```
+
+- `-m 4`: Uses 4 threads for processing.
+
+**Note:** The progress bar is only displayed when multithreading is enabled.
+
+## Examples
+
+- **Analyze all WAV and MP3 files in the current directory:**
+
+  ```bash
+  python audio_analysis.py -f results.html *.wav *.mp3
+  ```
+
+- **Analyze files with multithreading (e.g., using 8 threads):**
+
+  ```bash
+  python audio_analysis.py -f results.html -m 8 *.wav *.mp3
+  ```
+
+- **Analyze specific files:**
+
+  ```bash
+  python audio_analysis.py -f results.html song1.wav song2.mp3
+  ```
+
+## Script Overview
+
+The script performs the following tasks:
+
+1. **Extracts Metadata**: Uses `ffprobe` to extract bitrate, codec, sample rate, channels, and bits per sample from the audio files.
+
+2. **Loads Audio Data**: Reads the audio files using `librosa`.
+
+3. **Analyzes Audio**: Determines the maximum significant frequency present in the signal.
+
+4. **Estimates Bitrate**: Estimates the actual bitrate based on the codec and maximum frequency.
+
+5. **Generates Spectrograms**: Creates spectrogram images for each audio file.
+
+6. **Generates HTML Report**: Compiles all the information into an HTML report with embedded spectrograms.
+
+## Dependencies
+
+- **Python Packages**:
+  - `librosa`
+  - `numpy`
+  - `matplotlib`
+  - `tqdm`
+
+- **External Tools**:
+  - `ffmpeg` (specifically `ffprobe`)
+
+## Limitations
+
+- **Accuracy of Bitrate Estimation**: The estimation is based on frequency analysis and may not be precise for all audio files, especially those with limited high-frequency content due to the nature of the recording or production.
+
+- **Supported Formats**: Only the following audio formats are supported:
+  - WAV
+  - FLAC
+  - MP3
+  - AAC
+  - OGG
+  - M4A
+  - AIFF
+
+- **System Resources**: Analyzing large audio files or a large number of files may consume significant CPU and memory resources.
 
 ## License
 
-This project is licensed under the MIT License.
+This script is provided as-is without any warranty. Use it at your own risk.
