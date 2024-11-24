@@ -155,30 +155,68 @@ def generate_html_report(results, html_filename):
         print(f"Error generating HTML report: {e}")
 
 def process_file(file_path):
+    """
+    Process an audio file to extract metadata, analyze frequency, estimate bitrate,
+    and generate a spectrogram.
+
+    Args:
+        file_path (str): Path to the audio file.
+
+    Returns:
+        dict: Analysis results including codec, sample rate, max frequency, and spectrogram path.
+    """
     if not os.path.exists(file_path):
         print(f"File does not exist: {file_path}")
         return None
+
     if not is_supported_format(file_path):
         print(f"Unsupported format: {file_path}")
         return None
+
     print(f"Analyzing {file_path}...")
+
     try:
+        # Load audio file
         y, sr = librosa.load(file_path, sr=None, mono=True)
     except Exception as e:
         print(f"Error loading audio file {file_path}: {e}")
         return None
+
+    # Extract metadata
     stated_bitrate, codec, sample_rate, channels, bits_per_sample = extract_metadata(file_path)
-    max_freq = analyze_audio(y, sr)
+
+    # Analyze spectrum for maximum frequency
+    n_fft = 4096  # High-resolution FFT for frequency detection
+    S = np.abs(librosa.stft(y, n_fft=n_fft))
+    frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    spectrum = np.max(S, axis=1)  # Maximum energy across time frames
+    threshold = 0.0005 * np.max(spectrum)  # Lower threshold for significant frequencies
+    significant_freq_indices = np.where(spectrum > threshold)[0]
+
+    if significant_freq_indices.size > 0:
+        max_freq = frequencies[significant_freq_indices[-1]]
+    else:
+        max_freq = 0.0
+
+    # Estimate bitrate
     estimated_bitrate = estimate_actual_bitrate(
         codec, max_freq, sample_rate, channels,
         bit_rate=stated_bitrate, bits_per_sample=bits_per_sample
     )
+
+    # Calculate frequency ratio
     frequency_ratio = max_freq / (sample_rate / 2) if sample_rate else 0
+
+    # Log results
     logging.info(f"File: {file_path}")
     logging.info(f"Max Frequency: {max_freq:.2f} Hz")
     logging.info(f"Frequency Ratio: {frequency_ratio:.2f}")
     logging.info(f"Estimated Bitrate: {estimated_bitrate}")
+
+    # Generate spectrogram
     spectrogram_file = generate_spectrogram(y, sr, file_path)
+
+    # Compile results
     result = {
         "file": file_path,
         "codec": codec,
@@ -188,6 +226,7 @@ def process_file(file_path):
         "estimated_bitrate": estimated_bitrate,
         "spectrogram": spectrogram_file
     }
+
     return result
 
 def main():
