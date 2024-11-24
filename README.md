@@ -1,5 +1,7 @@
 
-# Whats My Bitrate? - Audio Analysis Tool
+# Whats my Bitrate? - Audio Analysis Tool
+- V0.1 Apha
+- TBD: More specific Re-rencoded Mp3 to WAV Estimates
 
 This tool analyzes audio files to estimate their actual bitrate based on the maximum significant frequency present in the signal. It generates spectrograms for each file and compiles the results into an HTML report.
 
@@ -7,6 +9,8 @@ This tool analyzes audio files to estimate their actual bitrate based on the max
 
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+  - [Using requirements.txt](#using-requirementstxt)
+  - [Manual Installation](#manual-installation)
 - [Usage](#usage)
   - [Basic Usage](#basic-usage)
   - [Multithreading](#multithreading)
@@ -38,13 +42,23 @@ This tool analyzes audio files to estimate their actual bitrate based on the max
 
 ## Installation
 
-1. **Clone the repository or download the script** to your local machine.
+### Using requirements.txt
 
-2. **Install required Python packages**:
+If your Python version supports `requirements.txt` for dependency installation, run the following command in your terminal:
 
-   ```bash
-   pip install librosa numpy matplotlib tqdm
-   ```
+```bash
+pip install -r requirements.txt
+```
+
+This will install all necessary Python packages.
+
+### Manual Installation
+
+If your Python version does not support `requirements.txt`, manually install each dependency:
+
+```bash
+pip install librosa numpy matplotlib tqdm
+```
 
 ## Usage
 
