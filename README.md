@@ -82,6 +82,8 @@ python whatsmybitrate.py -f report.html -l -a
    python whatsmybitrate.py -f specific_files.html file1.mp3 file2.wav
    ```
 
+![image](https://github.com/user-attachments/assets/1c6e089a-b934-41f3-84fb-e07855121b54)
+
 ## Supported Audio Formats
 - WAV
 - FLAC
