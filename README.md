@@ -120,12 +120,6 @@ If spectrograms are missing:
 ### Errors in Logs
 If the script encounters errors, enable logging with the `-l` flag. Review the logs for detailed error messages.
 
-## Development
-### Running Tests
-To ensure the script works as expected, run the included tests:
-```bash
-python tests.py
-```
 
 ## License
 This project is not licensed. Do you want you want with it. :)
