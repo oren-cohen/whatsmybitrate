@@ -20,8 +20,8 @@ This tool analyzes audio files for quality metrics such as bit rate, frequency, 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/audio-quality-analyzer.git
-   cd audio-quality-analyzer
+   git clone https://github.com/oren-cohen/whatsmybitrate.git
+   cd whatsmybitrate
    ```
 
 2. Install Python dependencies:
