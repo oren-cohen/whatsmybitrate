@@ -1,158 +1,135 @@
+# Whats my Bitrate? - Audio Quality Analyzer
 
-# Whats my Bitrate? - Audio Analysis Tool
-- V0.1 Apha
-- TBD: More specific Re-rencoded Mp3 to WAV Estimates
+## Overview
+This tool analyzes audio files for quality metrics such as bit rate, frequency, and codec type. It also generates spectrograms for visual representation of the audio spectrum. It supports a variety of audio formats, including MP3, FLAC, WAV, AAC, M4A, and more.
 
-This tool analyzes audio files to estimate their actual bitrate based on the maximum significant frequency present in the signal. It generates spectrograms for each file and compiles the results into an HTML report.
+## Features
+- Analyze audio files for detailed quality metrics.
+- Generate spectrograms for audio visualization.
+- Supports multiple file types: `mp3`, `flac`, `wav`, `aac`, `ogg`, `m4a`, `aiff`.
+- Batch processing of files in a directory.
+- Recursive directory scanning.
+- Multi-threaded processing for faster analysis.
 
-## Table of Contents
-
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-  - [Using requirements.txt](#using-requirementstxt)
-  - [Manual Installation](#manual-installation)
-- [Usage](#usage)
-  - [Basic Usage](#basic-usage)
-  - [Multithreading](#multithreading)
-- [Examples](#examples)
-- [Script Overview](#script-overview)
-- [Dependencies](#dependencies)
-- [Limitations](#limitations)
-- [License](#license)
-
-## Prerequisites
-
-- **Python 3.6 or higher**
-- **ffmpeg**: Required for extracting audio metadata.
-
-  Install ffmpeg:
-
-  - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add it to your system PATH.
-  - **macOS**: Install via Homebrew:
-
-    ```bash
-    brew install ffmpeg
-    ```
-
-  - **Linux**: Install via package manager:
-
-    ```bash
-    sudo apt-get install ffmpeg
-    ```
+## Requirements
+- Python 3.7 or later
+- FFmpeg (for metadata extraction and file decoding)
+- Required Python libraries (see `requirements.txt`)
 
 ## Installation
 
-### Using requirements.txt
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/audio-quality-analyzer.git
+   cd audio-quality-analyzer
+   ```
 
-If your Python version supports `requirements.txt` for dependency installation, run the following command in your terminal:
+2. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-```bash
-pip install -r requirements.txt
-```
+3. Install FFmpeg:
+   - **Linux**:
+     ```bash
+     sudo apt update
+     sudo apt install ffmpeg
+     ```
+   - **MacOS**:
+     ```bash
+     brew install ffmpeg
+     ```
+   - **Windows**:
+     1. Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html).
+     2. Extract the archive and add the `bin` folder to your system's PATH.
 
-This will install all necessary Python packages.
-
-### Manual Installation
-
-If your Python version does not support `requirements.txt`, manually install each dependency:
-
-```bash
-pip install librosa numpy matplotlib tqdm
-```
+   To verify FFmpeg installation, run:
+   ```bash
+   ffmpeg -version
+   ```
 
 ## Usage
-
-### Basic Usage
-
-Run the script from the command line, specifying the output HTML file and the input audio files or patterns.
-
+### Basic Command
+Analyze all audio files in the current and generate a report:
 ```bash
-python audio_analysis.py -f results.html input_files
+python whatsmybitrate.py -f report.html -l -a
 ```
 
-- `-f results.html`: Specifies the name of the output HTML report.
-- `input_files`: One or more audio files or glob patterns (e.g., `*.wav`, `*.mp3`).
+### Command-Line Arguments
+| Argument          | Description                                                                                 |
+|--------------------|---------------------------------------------------------------------------------------------|
+| `-f <file>`       | Output HTML file name (required).                                                          |
+| `-l`              | Enable logging.                                                                            |
+| `-a`              | Analyze all supported audio types.                                                         |
+| `-t <type>`       | Analyze a specific file type (e.g., `mp3`, `wav`).                                         |
+| `-r`              | Scan directories recursively.                                                              |
+| `-m <threads>`    | Number of threads to use for analysis (default: 1).                                        |
+| `<input>`         | Specify individual files or patterns (e.g., `*.mp3`, `*.wav`).                             |
 
-**Example:**
+### Examples
+1. Analyze all files in a directory recursively:
+   ```bash
+   python whatsmybitrate.py -f analysis.html -l -a -r /path/to/directory
+   ```
 
+2. Analyze only `mp3` files in a directory recursively:
+   ```bash
+   python whatsmybitrate.py -f mp3_analysis.html -t mp3 -r /path/to/directory
+   ```
+
+3. Analyze specific files:
+   ```bash
+   python whatsmybitrate.py -f specific_files.html file1.mp3 file2.wav
+   ```
+
+## Supported Audio Formats
+- WAV
+- FLAC
+- MP3
+- AAC
+- OGG
+- M4A
+- AIFF
+
+## Output
+- **HTML Report**: Contains detailed metrics for each file, including:
+  - Codec
+  - Sample Rate
+  - Max Frequency
+  - Nyquist Frequency
+  - Frequency Ratio
+  - Stated Bit Rate
+  - Estimated Bitrate
+  - Spectrogram image (if generated).
+
+## Troubleshooting
+### FFmpeg Not Found
+Ensure FFmpeg is installed and added to your system's PATH. Test the installation by running:
 ```bash
-python audio_analysis.py -f report.html *.wav *.mp3
+ffmpeg -version
 ```
 
-### Multithreading
+### Missing Spectrograms
+If spectrograms are missing:
+- Ensure `matplotlib` and `librosa` are installed:
+  ```bash
+  pip install matplotlib librosa
+  ```
+- Check that the audio file is not corrupt or unsupported.
 
-To speed up the analysis of multiple files, you can enable multithreading by specifying the number of threads with the `-m` option.
+### Errors in Logs
+If the script encounters errors, enable logging with the `-l` flag. Review the logs for detailed error messages.
 
+## Development
+### Running Tests
+To ensure the script works as expected, run the included tests:
 ```bash
-python audio_analysis.py -f results.html -m 4 input_files
+python tests.py
 ```
-
-- `-m 4`: Uses 4 threads for processing.
-
-**Note:** The progress bar is only displayed when multithreading is enabled.
-
-## Examples
-
-- **Analyze all WAV and MP3 files in the current directory:**
-
-  ```bash
-  python audio_analysis.py -f results.html *.wav *.mp3
-  ```
-
-- **Analyze files with multithreading (e.g., using 8 threads):**
-
-  ```bash
-  python audio_analysis.py -f results.html -m 8 *.wav *.mp3
-  ```
-
-- **Analyze specific files:**
-
-  ```bash
-  python audio_analysis.py -f results.html song1.wav song2.mp3
-  ```
-
-## Script Overview
-
-The script performs the following tasks:
-
-1. **Extracts Metadata**: Uses `ffprobe` to extract bitrate, codec, sample rate, channels, and bits per sample from the audio files.
-
-2. **Loads Audio Data**: Reads the audio files using `librosa`.
-
-3. **Analyzes Audio**: Determines the maximum significant frequency present in the signal.
-
-4. **Estimates Bitrate**: Estimates the actual bitrate based on the codec and maximum frequency.
-
-5. **Generates Spectrograms**: Creates spectrogram images for each audio file.
-
-6. **Generates HTML Report**: Compiles all the information into an HTML report with embedded spectrograms.
-
-## Dependencies
-
-- **Python Packages**:
-  - `librosa`
-  - `numpy`
-  - `matplotlib`
-  - `tqdm`
-
-- **External Tools**:
-  - `ffmpeg` (specifically `ffprobe`)
-
-## Limitations
-
-- **Accuracy of Bitrate Estimation**: The estimation is based on frequency analysis and may not be precise for all audio files, especially those with limited high-frequency content due to the nature of the recording or production.
-
-- **Supported Formats**: Only the following audio formats are supported:
-  - WAV
-  - FLAC
-  - MP3
-  - AAC
-  - OGG
-  - M4A
-  - AIFF
-
-- **System Resources**: Analyzing large audio files or a large number of files may consume significant CPU and memory resources.
 
 ## License
+This project is not licensed. Do you want you want with it. :)
 
-This script is provided as-is without any warranty. Use it at your own risk.
+---
+
+If you encounter any issues, feel free to open an issue on the GitHub repository.
