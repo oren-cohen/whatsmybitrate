@@ -185,10 +185,8 @@ def estimate_actual_bitrate(codec, max_frequency, sample_rate=None, channels=Non
         else:
             bitrate = "Low-Quality Re-encoded Lossless"
     elif codec.lower() in ["aac", "m4a"]:
-        if frequency_ratio >= 0.85:
-            bitrate = "128 kbps MP3 Equivalent (Good Quality)"
-        elif frequency_ratio >= 0.70:
-            bitrate = "96 kbps MP3 Equivalent (Medium Quality)"
+        if frequency_ratio >= 0.86:
+            bitrate = "320kbps kbps MP3 Equivalent or better (Good Quality)"
         else:
             bitrate = "Low-Quality AAC/M4A"            
     # Lossy compressed codecs
