@@ -1,7 +1,7 @@
 # Whats my Bitrate? - Audio Quality Analyzer
 
 ## Overview
-This tool analyzes audio files for quality metrics such as bit rate, frequency, and codec type. It also generates spectrograms for visual representation of the audio spectrum. It supports a variety of audio formats, including MP3, FLAC, WAV, AAC, M4A, and more.
+This tool analyzes audio files for quality metrics such as bit rate, frequency, and codec type in bulk. It also generates spectrograms for visual representation of the audio spectrum. It supports a variety of audio formats, including MP3, FLAC, WAV, AAC, M4A, and more.
 
 ## Features
 - Analyze audio files for detailed quality metrics.
