@@ -16,6 +16,7 @@ import logging
 import signal
 import soundfile as sf
 import audioread
+from functools import partial
 
 
 SUPPORTED_FORMATS = ['wav', 'flac', 'mp3', 'aac', 'ogg', 'm4a', 'aiff']
@@ -492,7 +493,9 @@ def check_huffman_anomalies(indices):
     return False
 
 
-def process_file(file_path, timeout_duration=60, enable_logging=True):
+def process_file(
+    file_path, timeout_duration=60, enable_logging=True, enable_spectrogram=True
+):
     # Initialize logger inside the worker to avoid the UnboundLocalError
     logger = setup_logger(enable_logging)
     
@@ -554,14 +557,18 @@ def process_file(file_path, timeout_duration=60, enable_logging=True):
         )
 
         # Generate spectrogram
-        if logger:
-            logger.info(f"Generating spectrogram for: {file_path}")
-        spectrogram_file = generate_spectrogram(y, sr, file_path)
-        if logger:
-            if spectrogram_file:
-                logger.info(f"Spectrogram successfully generated: {spectrogram_file}")
-            else:
-                logger.error(f"Spectrogram generation failed for: {file_path}")
+        spectrogram_file = None
+        if enable_spectrogram:
+            if logger:
+                logger.info(f"Generating spectrogram for: {file_path}")
+            spectrogram_file = generate_spectrogram(y, sr, file_path)
+            if logger:
+                if spectrogram_file:
+                    logger.info(
+                        f"Spectrogram successfully generated: {spectrogram_file}"
+                    )
+                else:
+                    logger.error(f"Spectrogram generation failed for: {file_path}")
 
         # Compile result
         result = {
@@ -736,6 +743,14 @@ def scan_directory(directory, recursive=False, file_patterns=None, file_type=Non
     return matching_files
 
 
+def process_file_wrapper(file_path, enable_logging=False, enable_spectrogram=True):
+    return process_file(
+        file_path,
+        enable_logging=enable_logging,
+        enable_spectrogram=enable_spectrogram,
+    )
+
+
 def main():
     global logger
     parser = argparse.ArgumentParser(description="Analyze audio files and generate a report.")
@@ -746,6 +761,9 @@ def main():
     parser.add_argument("-r", "--recursive", action="store_true", help="Scan directories recursively")
     parser.add_argument("-t", "--type", help="Specify a single file type to scan (e.g., mp3)")
     parser.add_argument("-l", "--log", action="store_true", help="Enable logging")
+    parser.add_argument(
+        "--no-spectrogram", action="store_true", help="Disable spectrogram generation"
+    )
     args = parser.parse_args()
 
     # Initialize logger
@@ -798,10 +816,20 @@ def main():
     results = []
     if args.threads > 1:
         with multiprocessing.Pool(processes=args.threads) as pool:
-            results = list(tqdm(pool.imap(process_file, matching_files), total=len(matching_files)))
+            process_func = partial(
+                process_file_wrapper,
+                enable_logging=args.log,
+                enable_spectrogram=not args.no_spectrogram,
+            )
+            results = list(
+                tqdm(
+                    pool.imap(process_func, matching_files),
+                    total=len(matching_files),
+                )
+            )
     else:
         for file_path in tqdm(matching_files, desc="Processing files"):
-            result = process_file(file_path)
+            result = process_file_wrapper(file_path, args.log, not args.no_spectrogram)
             if logger:
                 logger.info(f"Finished processing file: {file_path}")
             results.append(result)
