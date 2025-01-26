@@ -685,6 +685,72 @@ def generate_html_report(results, html_filename):
         if logger:
             logger.error(f"Error generating HTML report: {e}")
 
+
+def generate_csv_report(results, csv_filename):
+    """
+    Generates a CSV report with results including estimated bitrate, Nyquist frequency,
+    frequency ratio, and FLAC losslessness (spectrograms excluded as they cannot be represented in CSV).
+    """
+    import csv
+
+    try:
+        with open(csv_filename, "w", newline="") as csv_file:
+            # Define CSV headers
+            fieldnames = [
+                "File",
+                "Error",
+                "Codec",
+                "Sample Rate (Hz)",
+                "Max Frequency (Hz)",
+                "Nyquist Frequency (Hz)",
+                "Frequency Ratio",
+                "Stated Bit Rate",
+                "Estimated Bitrate",
+                "Is Lossless",
+                "Dynamic Range (dB)",
+            ]
+
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            writer.writeheader()
+
+            # Process each result
+            for result in results:
+                row = {}
+                if "error" in result:
+                    # Write error information
+                    row = {
+                        "File": result.get("file", "Unknown"),
+                        "Error": result["error"],
+                    }
+                else:
+                    # Write successful analysis data
+                    row = {
+                        "File": os.path.basename(result.get("file", "Unknown")),
+                        "Error": "",
+                        "Codec": result.get("codec", "Unknown"),
+                        "Sample Rate (Hz)": result.get("sample_rate", "Unknown"),
+                        "Max Frequency (Hz)": result.get("max_frequency", "Unknown"),
+                        "Nyquist Frequency (Hz)": result.get(
+                            "nyquist_frequency", "Unknown"
+                        ),
+                        "Frequency Ratio": result.get("frequency_ratio", "Unknown"),
+                        "Stated Bit Rate": result.get("bit_rate", "Unknown"),
+                        "Estimated Bitrate": result.get("estimated_bitrate", "Unknown"),
+                        "Is Lossless": (
+                            "Yes" if result.get("is_lossless", False) else "No"
+                        ),
+                        "Dynamic Range (dB)": result.get("dynamic_range", "Unknown"),
+                    }
+                writer.writerow(row)
+
+        if logger:
+            logger.info(f"CSV report successfully saved to {csv_filename}")
+
+    except Exception as e:
+        if logger:
+            logger.error(f"Error generating CSV report: {e}")
+
+
 def output_results(results):
     print("\nSummary of all processed files:")
     for result in results:
@@ -753,13 +819,34 @@ def process_file_wrapper(file_path, enable_logging=False, enable_spectrogram=Tru
 
 def main():
     global logger
-    parser = argparse.ArgumentParser(description="Analyze audio files and generate a report.")
-    parser.add_argument("-f", "--file", help="Output HTML file name", required=True)
-    parser.add_argument("input", nargs="*", help="Input audio file(s) or patterns (e.g., *.mp3 *.wav)")
-    parser.add_argument("-m", "--threads", type=int, default=1, help="Number of threads to use (default: 1)")
-    parser.add_argument("-a", "--all", action="store_true", help="Scan all supported audio file types")
-    parser.add_argument("-r", "--recursive", action="store_true", help="Scan directories recursively")
-    parser.add_argument("-t", "--type", help="Specify a single file type to scan (e.g., mp3)")
+    parser = argparse.ArgumentParser(
+        description="Analyze audio files and generate a report in HTML or CSV format."
+    )
+    parser.add_argument(
+        "-f",
+        "--file",
+        help="Output report file name (use .html or .csv extension)",
+        required=True,
+    )
+    parser.add_argument(
+        "input", nargs="*", help="Input audio file(s) or patterns (e.g., *.mp3 *.wav)"
+    )
+    parser.add_argument(
+        "-m",
+        "--threads",
+        type=int,
+        default=1,
+        help="Number of threads to use (default: 1)",
+    )
+    parser.add_argument(
+        "-a", "--all", action="store_true", help="Scan all supported audio file types"
+    )
+    parser.add_argument(
+        "-r", "--recursive", action="store_true", help="Scan directories recursively"
+    )
+    parser.add_argument(
+        "-t", "--type", help="Specify a single file type to scan (e.g., mp3)"
+    )
     parser.add_argument("-l", "--log", action="store_true", help="Enable logging")
     parser.add_argument(
         "--no-spectrogram", action="store_true", help="Disable spectrogram generation"
@@ -836,10 +923,16 @@ def main():
 
     # Output results
     output_results(results)
-    generate_html_report(results, args.file)
+
+    # Generate reports based on file extension
+    output_file = args.file
+    if output_file.lower().endswith(".csv"):
+        generate_csv_report(results, output_file)
+    else:
+        generate_html_report(results, output_file)
 
     if logger:
-        logger.info("Script completed successfully.")
+        logger.info(f"Report successfully generated: {output_file}")
 
 
 if __name__ == "__main__":
