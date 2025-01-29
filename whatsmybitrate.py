@@ -849,7 +849,10 @@ def main():
     )
     parser.add_argument("-l", "--log", action="store_true", help="Enable logging")
     parser.add_argument(
-        "--no-spectrogram", action="store_true", help="Disable spectrogram generation"
+        "-n",
+        "--no-spectrogram",
+        action="store_true",
+        help="Disable spectrogram generation",
     )
     args = parser.parse_args()
 
