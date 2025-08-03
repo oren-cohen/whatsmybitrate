@@ -822,14 +822,17 @@ def main():
     parser = argparse.ArgumentParser(
         description="Analyze audio files and generate a report in HTML or CSV format."
     )
+    # The 'input' argument captures all positional arguments.
+    parser.add_argument(
+        "input",
+        nargs="*",
+        help="Input audio file, directory, or file patterns (e.g., 'my_song.wav', 'audio_folder/', '*.mp3').",
+    )
     parser.add_argument(
         "-f",
         "--file",
         help="Output report file name (use .html or .csv extension)",
         required=True,
-    )
-    parser.add_argument(
-        "input", nargs="*", help="Input audio file(s) or patterns (e.g., *.mp3 *.wav)"
     )
     parser.add_argument(
         "-m",
@@ -839,20 +842,20 @@ def main():
         help="Number of threads to use (default: 1)",
     )
     parser.add_argument(
-        "-a", "--all", action="store_true", help="Scan all supported audio file types"
+        "-a", "--all", action="store_true", help="Scan for all supported audio file types in a directory."
     )
     parser.add_argument(
-        "-r", "--recursive", action="store_true", help="Scan directories recursively"
+        "-r", "--recursive", action="store_true", help="Scan directories recursively."
     )
     parser.add_argument(
-        "-t", "--type", help="Specify a single file type to scan (e.g., mp3)"
+        "-t", "--type", help="Specify a single file type to scan for in a directory (e.g., mp3)."
     )
-    parser.add_argument("-l", "--log", action="store_true", help="Enable logging")
+    parser.add_argument("-l", "--log", action="store_true", help="Enable logging to audio_analysis.log.")
     parser.add_argument(
         "-n",
         "--no-spectrogram",
         action="store_true",
-        help="Disable spectrogram generation",
+        help="Disable spectrogram generation.",
     )
     args = parser.parse_args()
 
@@ -862,80 +865,118 @@ def main():
         logger.info("Logger successfully initialized in main.")
         logger.info(f"Script arguments: {args}")
 
-    # Enforce mutual exclusivity of -a and -t
-    if args.all and args.type:
-        print("Error: You cannot use -a (all file types) with -t (specific file type).")
-        if logger:
-            logger.error("Mutually exclusive flags -a and -t used together.")
-        return
+    # This list will hold the files to be processed.
+    files_to_process = []
 
-    # Determine directory
-    directory = os.getcwd()  # Default to current directory
-    if args.input and args.input[0] not in ["*", ".", "/"]:  # If directory or pattern is specified
-        directory = args.input[0]
-    elif len(args.input) == 1:
-        directory = args.input[0] if os.path.isdir(args.input[0]) else os.getcwd()
+    # --- NEW LOGIC: Check for the single file case ---
+    is_single_file_input = len(args.input) == 1 and os.path.isfile(args.input[0])
 
-    # Determine file patterns
-    file_patterns = None
-    file_type = args.type
+    if is_single_file_input:
+        # Case 1: A single, specific file was passed. No need for -t.
+        print(f"Processing a single specified file: {args.input[0]}")
+        files_to_process = [args.input[0]]
+        # Optionally warn the user if they passed -t, as it will be ignored.
+        if args.type or args.all:
+            print("Info: -t and -a flags are ignored when a single file is provided as input.")
+            if logger:
+                logger.info("-t/-a flags ignored for single file input.")
 
-    if args.all:
-        # Scan all SUPPORTED_FORMATS if -a is specified
+    else:
+        # Case 2: Handle directory scanning, patterns, or multiple files.
+        # In this mode, we need scanning criteria (-t, -a, or a glob pattern).
+        print("Scanning for files based on provided criteria...")
+
+        # Enforce mutual exclusivity of -a and -t
+        if args.all and args.type:
+            print("Error: You cannot use -a (all file types) with -t (specific file type).")
+            if logger:
+                logger.error("Mutually exclusive flags -a and -t used together.")
+            return
+
+        # Validate that we have enough information to perform a scan.
+        # The user must provide a type (-t), all types (-a), or a pattern (e.g., *.mp3).
+        has_pattern = any("*" in p for p in args.input)
+        if not args.all and not args.type and not has_pattern:
+            print("Error: When scanning a directory, you must specify the file type with -t <type>, use -a for all supported types, or provide a file pattern (e.g., 'audio/*.mp3').")
+            if logger:
+                logger.error("Scan criteria (-a, -t, or pattern) missing for directory scan.")
+            return
+
+        # Determine the directory to scan
+        directory_to_scan = os.getcwd()
         file_patterns = None
-    elif args.input:
-        # Use input patterns (e.g., *.mp3)
-        file_patterns = args.input
-    elif not args.all and not file_type:
-        # If neither -a nor -t nor patterns are specified, exit with an error
-        print("Error: You must specify -a, -t <type>, or file patterns (e.g., *.mp3).")
+        if args.input:
+            if os.path.isdir(args.input[0]):
+                directory_to_scan = args.input[0]
+                # If more inputs are provided after the directory, treat them as patterns
+                if len(args.input) > 1:
+                    file_patterns = args.input[1:]
+            else:
+                # Assume inputs are patterns for the current working directory
+                file_patterns = args.input
+
+        # Perform the directory scan
+        files_to_process = scan_directory(
+            directory_to_scan,
+            recursive=args.recursive,
+            file_patterns=file_patterns,
+            file_type=args.type
+        )
+
+    # --- End of new logic ---
+
+    if not files_to_process:
+        print("No matching files found to process.")
         if logger:
-            logger.error("No file patterns, -a, or -t specified.")
+            logger.warning("File list is empty. Exiting.")
         return
 
-    # Perform directory scan
-    matching_files = scan_directory(directory, recursive=args.recursive, file_patterns=file_patterns, file_type=file_type)
+    print(f"Found {len(files_to_process)} file(s) to analyze.")
 
-    if not matching_files:
-        print("No matching files found.")
-        if logger:
-            logger.warning("No matching files found.")
-        return
-
-    # Process files
+    # Process files using a thread pool or sequentially
     results = []
-    if args.threads > 1:
+    use_multiprocessing = args.threads > 1 and len(files_to_process) > 1
+    
+    if use_multiprocessing:
         with multiprocessing.Pool(processes=args.threads) as pool:
             process_func = partial(
                 process_file_wrapper,
                 enable_logging=args.log,
                 enable_spectrogram=not args.no_spectrogram,
             )
+            # Use tqdm to show a progress bar for the parallel processing
             results = list(
                 tqdm(
-                    pool.imap(process_func, matching_files),
-                    total=len(matching_files),
+                    pool.imap(process_func, files_to_process),
+                    total=len(files_to_process),
+                    desc="Processing files (multi-threaded)"
                 )
             )
     else:
-        for file_path in tqdm(matching_files, desc="Processing files"):
-            result = process_file_wrapper(file_path, args.log, not args.no_spectrogram)
-            if logger:
-                logger.info(f"Finished processing file: {file_path}")
+        # Process sequentially with a progress bar
+        for file_path in tqdm(files_to_process, desc="Processing files (single-threaded)"):
+            result = process_file_wrapper(
+                file_path,
+                enable_logging=args.log,
+                enable_spectrogram=not args.no_spectrogram
+            )
             results.append(result)
 
-    # Output results
+    # Output results to console and generate reports
     output_results(results)
 
-    # Generate reports based on file extension
     output_file = args.file
     if output_file.lower().endswith(".csv"):
         generate_csv_report(results, output_file)
+    elif output_file.lower().endswith(".html"):
+        generate_html_report(results, output_file)
     else:
+        print(f"Warning: Output file '{output_file}' does not end in .html or .csv. Defaulting to HTML format.")
         generate_html_report(results, output_file)
 
     if logger:
         logger.info(f"Report successfully generated: {output_file}")
+    print(f"\nAnalysis complete. Report saved to {output_file}")
 
 
 if __name__ == "__main__":
