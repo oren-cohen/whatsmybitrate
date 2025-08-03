@@ -13,6 +13,7 @@ This tool analyzes audio files for quality metrics such as bit rate, frequency, 
 - Export results in HTML or CSV format.
 
 ## Requirements
+- OS X or Linux
 - Python 3.7 or later
 - FFmpeg (for metadata extraction and file decoding)
 - Required Python libraries (see `requirements.txt`)
