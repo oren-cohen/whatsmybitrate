@@ -14,7 +14,7 @@ This tool analyzes audio files for quality metrics such as bit rate, frequency, 
 
 ## Requirements
 - OS X or Linux
-- Python 3.7 or later
+- Python 3.11.6 or later
 - FFmpeg (for metadata extraction and file decoding)
 - Required Python libraries (see `requirements.txt`)
 
