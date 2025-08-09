@@ -57,7 +57,7 @@ sudo apt update && sudo apt install ffmpeg
 
 #### Windows
 1. Install an FFmpeg build from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/).
-2. Add the bin directory to your windows PATH
+2. Add the bin directory to your windows PATH (search for path in search - make sure to restart all terminals)
 
 To specify the path, run the script with the `--ffprobe-path` argument:
 ```bash
