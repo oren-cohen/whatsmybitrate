@@ -6,6 +6,7 @@
 *.ogg
 *.m4a
 *.aiff
+*.opus
 
 #ignore spectrogram PNG's
 *.png
@@ -14,7 +15,7 @@
 *.html
 
 # Ignore all spectrogram images
-spectrum_*.png
+*.png
 
 # Ignore log files
 *.log
