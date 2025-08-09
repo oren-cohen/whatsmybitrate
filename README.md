@@ -1,4 +1,4 @@
-# WhatsMyBitrate - Audio Quality Analyzer v0.1.0
+# WhatsMyBitrate - Audio Quality Analyzer v0.1.1
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/1c6e089a-b934-41f3-84fb-e07855121b54" alt="Spectrogram Example" width="700">
@@ -23,7 +23,7 @@ The script supports a wide variety of lossy and lossless audio formats, includin
 
 ## Requirements
 - **OS:** Windows, macOS, or Linux
-- **Python:** 3.11 or later
+- **Python:** 3.8 or later
 - **FFmpeg:** Required for metadata extraction.
 - **Python Libraries:** See `requirements.txt`.
 
