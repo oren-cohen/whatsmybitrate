@@ -19,3 +19,7 @@
 
 # Ignore log files
 *.log
+
+#ignore subdirs
+
+whatsmybitrate_report_*/
