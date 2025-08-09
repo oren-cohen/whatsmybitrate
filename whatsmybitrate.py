@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#v0.1.0
 import os
 import glob
 import librosa
