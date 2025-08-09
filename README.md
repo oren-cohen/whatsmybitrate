@@ -58,7 +58,7 @@ sudo apt update && sudo apt install ffmpeg
 #### Windows
 1. Install an FFmpeg build from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/).
 2. Add the bin directory to your windows PATH
-** (Manual PATH setup):**
+
 To specify the path, run the script with the `--ffprobe-path` argument:
 ```bash
 python whatsmybitrate.py "C:\path\to\my music" --ffprobe-path "C:\path\to\ffmpeg\bin\ffprobe.exe"
