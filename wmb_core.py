@@ -1,4 +1,3 @@
-# audiofile.py
 import os
 import sys
 import json
@@ -105,27 +104,27 @@ class AudioFile:
         }
 
     def _load_audio_data(self):
-        duration_to_load = float(MAX_LOAD_SECONDS)
-
         try:
             info = sf.info(self.path)
-            stop_frame = int(info.samplerate * duration_to_load)
+            stop_frame = int(info.samplerate * MAX_LOAD_SECONDS)
             self.y, self.sr = sf.read(self.path, always_2d=False, stop=stop_frame)
             if hasattr(self.y, "ndim") and self.y.ndim > 1:
                 self.y = np.mean(self.y, axis=1)
         except Exception:
-            # fallback to librosa
-            self.y, self.sr = librosa.load(self.path, sr=None, mono=True, duration=duration_to_load)
+            self.y, self.sr = librosa.load(self.path, sr=None, mono=True, duration=MAX_LOAD_SECONDS)
 
         if self.y is None or self.sr is None or len(self.y) == 0:
             raise RuntimeError("Audio data could not be loaded.")
 
-        # hard trim (backend safety)
-        max_samples = int(self.sr * duration_to_load)
+        # ✅ Hard cap regardless of loader behavior
+        max_samples = int(self.sr * MAX_LOAD_SECONDS)
         if len(self.y) > max_samples:
             self.y = self.y[:max_samples]
 
-        logger.debug(f"Loaded audio: {self.filename} @ {self.sr} Hz, {len(self.y)} samples")
+        # Helpful for debugging & titles
+        self.loaded_seconds = len(self.y) / float(self.sr)
+        logger.debug(f"Loaded {self.filename}: sr={self.sr}Hz, samples={len(self.y)}, "
+                    f"seconds_kept={self.loaded_seconds:.3f} / cap={MAX_LOAD_SECONDS}s")
 
     def _extract_metadata(self):
         try:
@@ -240,27 +239,35 @@ class AudioFile:
     def _generate_spectrogram_image(self, assets_dir):
         import matplotlib.pyplot as plt
         import librosa.display
-
-        n_fft = 4096
-        if self.y is None or len(self.y) < n_fft:
+        if self.y is None or self.sr is None:
             return
 
-        # random filename (no originals in name)
-        random_name = f"{uuid4().hex}.png"
-        out_path = os.path.join(assets_dir, random_name)
+        max_samples = int(self.sr * MAX_LOAD_SECONDS)
+        y_plot = self.y[:max_samples]
 
-        S = np.abs(librosa.stft(self.y, n_fft=n_fft, hop_length=n_fft // 4))
+        n_fft = 4096
+        if len(y_plot) < n_fft:
+            return
+        hop = n_fft // 4
+
+        from uuid import uuid4
+        out_path = os.path.join(assets_dir, f"{uuid4().hex}.png")
+
+        S = np.abs(librosa.stft(librosa.util.normalize(y_plot), n_fft=n_fft, hop_length=hop))
         S_dB = librosa.amplitude_to_db(S, ref=np.max)
 
         fig, ax = plt.subplots(figsize=(12, 6))
         librosa.display.specshow(
             S_dB, sr=self.sr, x_axis="time", y_axis="linear",
-            hop_length=n_fft // 4, cmap="viridis", fmax=self.sr / 2, ax=ax
+            hop_length=hop, cmap="viridis", fmax=self.sr / 2, ax=ax
         )
         fig.colorbar(ax.collections[0], format="%+2.0f dB", ax=ax)
-        ax.set_title("Spectrogram")
+
+        secs = len(y_plot) / float(self.sr)
+        ax.set_title(f"Spectrogram (first {secs:.2f}s)")
         fig.tight_layout()
         fig.savefig(out_path)
         plt.close(fig)
 
         self.spectrogram_path = out_path
+        logger.debug(f"Spectrogram saved: {out_path} (secs={secs:.3f}, cap={MAX_LOAD_SECONDS}s)")
