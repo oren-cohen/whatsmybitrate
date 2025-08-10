@@ -30,7 +30,7 @@ warnings.filterwarnings('ignore', category=UserWarning, message='PySoundFile fai
 warnings.filterwarnings('ignore', category=FutureWarning, message='.*audioread_load.*')
 SUPPORTED_FORMATS = ['wav', 'flac', 'mp3', 'aac', 'ogg', 'm4a', 'aiff', 'opus', 'alac']
 logger = logging.getLogger("audio_analysis")
-
+MAX_LOAD_SECONDS = 300.0
 
 def find_ffprobe_path(user_path=None):
     if user_path:
@@ -130,21 +130,19 @@ class AudioFile:
         }
 
     def _load_audio_data(self):
-        duration_to_load = 300.0  # Load max 5 minutes to prevent memory overload
         try:
             info = sf.info(self.path)
-            samplerate = info.samplerate
-            stop_frame = int(samplerate * duration_to_load)
+            stop_frame = int(info.samplerate * MAX_LOAD_SECONDS)
             self.y, self.sr = sf.read(self.path, always_2d=False, stop=stop_frame)
-            if self.y.ndim > 1: self.y = np.mean(self.y, axis=1)
+            if self.y.ndim > 1:
+                self.y = np.mean(self.y, axis=1)
         except Exception:
-            try:
-                self.y, self.sr = librosa.load(self.path, sr=None, mono=True, duration=duration_to_load)
-            except Exception as e:
-                 raise RuntimeError(f"All audio loading methods failed. Last error: {e}")
-        
+            # fallback to librosa
+            self.y, self.sr = librosa.load(self.path, sr=None, mono=True, duration=MAX_LOAD_SECONDS)
+
         if self.y is None or self.sr is None or len(self.y) == 0:
             raise RuntimeError("Audio data could not be loaded.")
+        logger.debug(f"Loaded audio: {self.filename} @ {self.sr} Hz, {len(self.y)} samples")
 
     def _extract_metadata(self):
         try:

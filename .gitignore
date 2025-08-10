@@ -1,3 +1,4 @@
+.DS_Store
 # Ignore all audio files (supported formats)
 *.wav
 *.flac
