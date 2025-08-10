@@ -14,17 +14,18 @@ import argparse
 from tqdm import tqdm
 import logging
 import soundfile as sf
-import audioread
 import sys
 import warnings
-from contextlib import redirect_stderr
+from contextlib import contextmanager
 import fnmatch
 import time
-from multiprocessing import Process, Manager
+from multiprocessing import Pool
 from abc import ABC, abstractmethod
 import hashlib
 import shutil
+from functools import partial
 
+warnings.filterwarnings('ignore', category=UserWarning, message='Xing stream size.*')
 warnings.filterwarnings('ignore', category=UserWarning, message='PySoundFile failed.*')
 warnings.filterwarnings('ignore', category=FutureWarning, message='.*audioread_load.*')
 SUPPORTED_FORMATS = ['wav', 'flac', 'mp3', 'aac', 'ogg', 'm4a', 'aiff', 'opus', 'alac']
@@ -50,6 +51,20 @@ def find_ffprobe_path(user_path=None):
 
     return None
 
+@contextmanager
+def suppress_stderr():
+    original_stderr_fd = sys.stderr.fileno()
+    saved_stderr_fd = os.dup(original_stderr_fd)
+    
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull_fd, original_stderr_fd)
+    os.close(devnull_fd)
+
+    try:
+        yield
+    finally:
+        os.dup2(saved_stderr_fd, original_stderr_fd)
+        os.close(saved_stderr_fd)
 
 class AudioFile:
     ffprobe_path = "ffprobe"
@@ -65,6 +80,7 @@ class AudioFile:
         self.max_frequency_peak = None
         self.max_frequency_sustained = None
         self.estimated_bitrate = None
+        self.estimated_bitrate_numeric = None
         self.is_lossless = False
         self.nyquist_frequency = None
         self.spectrogram_path = None
@@ -73,18 +89,26 @@ class AudioFile:
         self.log_entries = []
 
     def analyze(self, generate_spectrogram_flag=False, assets_dir=None):
-        null_device = 'nul' if sys.platform == "win32" else os.devnull
         try:
-            with open(null_device, 'w') as devnull, redirect_stderr(devnull):
+            with suppress_stderr():
                 self._load_audio_data()
-                self._extract_metadata()
+            
+            self._extract_metadata()
+            
+            with suppress_stderr():
                 self._analyze_spectrum()
-                self._estimate_quality()
-                if generate_spectrogram_flag and assets_dir:
-                    self._generate_spectrogram_image(assets_dir)
+
+            self._estimate_quality()
+
+            if generate_spectrogram_flag and assets_dir:
+                self._generate_spectrogram_image(assets_dir)
         except Exception as e:
             self.error = f"An unexpected error occurred during analysis: {e}"
             self.log_entries.append(f"FATAL - {self.error}")
+        finally:
+            if self.y is not None:
+                del self.y
+                self.y = None
 
     def to_dict(self):
         return {
@@ -93,33 +117,34 @@ class AudioFile:
             "codec": self.codec,
             "sample_rate": self.sr,
             "max_frequency": self.max_frequency_peak,
+            "sustained_frequency": self.max_frequency_sustained,
             "nyquist_frequency": self.nyquist_frequency,
             "peak_frequency_ratio": self.peak_frequency_ratio,
             "sustained_frequency_ratio": self.sustained_frequency_ratio,
             "bit_rate": f"{self.bit_rate} kbps" if self.bit_rate else "N/A",
             "estimated_bitrate": self.estimated_bitrate,
+            "estimated_bitrate_numeric": self.estimated_bitrate_numeric,
             "is_lossless": self.is_lossless,
             "spectrogram": self.spectrogram_path,
             "log_entries": self.log_entries
         }
 
     def _load_audio_data(self):
+        duration_to_load = 300.0  # Load max 5 minutes to prevent memory overload
         try:
-            self.y, self.sr = sf.read(self.path, always_2d=False)
+            info = sf.info(self.path)
+            samplerate = info.samplerate
+            stop_frame = int(samplerate * duration_to_load)
+            self.y, self.sr = sf.read(self.path, always_2d=False, stop=stop_frame)
             if self.y.ndim > 1: self.y = np.mean(self.y, axis=1)
         except Exception:
             try:
-                with audioread.audio_open(os.path.realpath(self.path)) as f:
-                    self.sr, n_channels = f.samplerate, f.channels
-                    buf = b"".join(f)
-                    if not buf: raise ValueError("File is empty or could not be read.")
-                    self.y = np.frombuffer(buf, dtype=np.int16).astype(np.float32) / 32768.0
-                    if n_channels > 1: self.y = self.y.reshape((-1, n_channels)).mean(axis=1)
-            except Exception:
-                self.y, self.sr = librosa.load(self.path, sr=None, mono=True, duration=60.0)
+                self.y, self.sr = librosa.load(self.path, sr=None, mono=True, duration=duration_to_load)
+            except Exception as e:
+                 raise RuntimeError(f"All audio loading methods failed. Last error: {e}")
         
         if self.y is None or self.sr is None or len(self.y) == 0:
-            raise RuntimeError("All audio loading methods failed.")
+            raise RuntimeError("Audio data could not be loaded.")
 
     def _extract_metadata(self):
         try:
@@ -141,12 +166,14 @@ class AudioFile:
 
     def _analyze_spectrum(self):
         n_fft = 4096
-        if len(self.y) < n_fft or not self.sr:
+        if self.y is None or len(self.y) < n_fft or not self.sr:
             self.max_frequency_peak = 0.0
             self.max_frequency_sustained = 0.0
             return
-            
-        S = np.abs(librosa.stft(self.y, n_fft=n_fft, hop_length=n_fft//4))
+
+        normalized_y = librosa.util.normalize(self.y)
+        S = np.abs(librosa.stft(normalized_y, n_fft=n_fft, hop_length=n_fft//4))
+        
         frequencies = librosa.fft_frequencies(sr=self.sr, n_fft=n_fft)
         S_dB = librosa.amplitude_to_db(S, ref=np.max)
         
@@ -173,6 +200,7 @@ class AudioFile:
     def _estimate_quality(self):
         if not self.sr or self.sr == 0:
             self.estimated_bitrate = "Invalid Sample Rate"
+            self.estimated_bitrate_numeric = "N/A"
             return
         
         self.nyquist_frequency = self.sr / 2
@@ -181,50 +209,68 @@ class AudioFile:
         self.peak_frequency_ratio = self.max_frequency_peak / self.nyquist_frequency if self.nyquist_frequency else 0
         self.sustained_frequency_ratio = self.max_frequency_sustained / self.nyquist_frequency if self.nyquist_frequency else 0
         
-        lossless_codecs = ["wav", "flac", "aiff", "pcm_s16le", "pcm_s24le", "pcm_s32le", "pcm_s16be", "alac"]
+        lossless_codecs = ["wav", "flac", "aiff", "pcm_s16le", "pcm_s24le", "pcm_s32le", "pcm_s16be", "pcm_f32le", "alac"]
         lossy_codecs = ["mp3", "aac", "m4a", "opus", "ogg", "vorbis"]
 
-        if self.peak_frequency_ratio >= 0.93:
-            if codec_lower in lossless_codecs:
-                self.estimated_bitrate = "Lossless"
-                self.is_lossless = True
-            else: 
-                self.estimated_bitrate = f"320 kbps Equivalent ({self.codec.upper()})"
+        br_classification = ""
         
-        elif self.peak_frequency_ratio >= 0.903:
-            if codec_lower in lossless_codecs:
-                self.estimated_bitrate = "320 kbps Equivalent (Transcoded)"
+        if codec_lower in lossless_codecs:
+            context = "(Transcoded)"
+            if self.peak_frequency_ratio >= 0.915:
+                self.estimated_bitrate = "Lossless"
+                self.estimated_bitrate_numeric = "Lossless"
+                self.is_lossless = True
             else:
-                self.estimated_bitrate = f"320 kbps Equivalent ({self.codec.upper()})"
+                if self.peak_frequency_ratio >= 0.8935:
+                    br_classification = "320 kbps Equivalent"
+                    self.estimated_bitrate_numeric = 320
+                elif self.peak_frequency_ratio >= 0.86:
+                    br_classification = "256 kbps Equivalent"
+                    self.estimated_bitrate_numeric = 256
+                else:
+                    br_classification = self._classify_quality_by_sustained_frequency(self.max_frequency_sustained)
+                    if "320" in br_classification: self.estimated_bitrate_numeric = 320
+                    elif "256" in br_classification: self.estimated_bitrate_numeric = 256
+                    elif "192" in br_classification: self.estimated_bitrate_numeric = 192
+                    elif "128" in br_classification: self.estimated_bitrate_numeric = 128
+                    else: self.estimated_bitrate_numeric = "<128"
+                
+                if br_classification:
+                    self.estimated_bitrate = f"{br_classification} {context}"
 
-        elif self.peak_frequency_ratio >= 0.85:
-            if codec_lower in lossless_codecs:
-                 self.estimated_bitrate = "256 kbps Equivalent (Transcoded)"
-            else:
-                 self.estimated_bitrate = f"256 kbps Equivalent ({self.codec.upper()})"
-
-        else:
-            br_classification = self._classify_quality_by_sustained_frequency(self.max_frequency_sustained)
+        elif codec_lower in lossy_codecs:
+            context = f"({self.codec.upper()})"
             
-            if codec_lower in lossless_codecs:
-                self.estimated_bitrate = f"{br_classification} (Transcoded)"
-            elif codec_lower in lossy_codecs:
-                self.estimated_bitrate = f"{br_classification} ({self.codec.upper()})"
+            if self.peak_frequency_ratio >= 0.883:
+                br_classification = "320 kbps Equivalent"
+                self.estimated_bitrate_numeric = 320
+            elif self.peak_frequency_ratio >= 0.84:
+                if self.sustained_frequency_ratio >= 0.76:
+                    br_classification = "256 kbps Equivalent"
+                    self.estimated_bitrate_numeric = 256
+                else:
+                    br_classification = "192 kbps Equivalent"
+                    self.estimated_bitrate_numeric = 192
             else:
-                self.estimated_bitrate = "Unknown Format"
+                br_classification = self._classify_quality_by_sustained_frequency(self.max_frequency_sustained)
+                if "320" in br_classification: self.estimated_bitrate_numeric = 320
+                elif "256" in br_classification: self.estimated_bitrate_numeric = 256
+                elif "192" in br_classification: self.estimated_bitrate_numeric = 192
+                elif "128" in br_classification: self.estimated_bitrate_numeric = 128
+                else: self.estimated_bitrate_numeric = "<128"
 
-        self.log_entries.append(f"INFO - Nyquist Frequency: {self.nyquist_frequency:.2f} Hz")
-        self.log_entries.append(f"INFO - Peak Frequency: {self.max_frequency_peak:.2f} Hz")
-        self.log_entries.append(f"INFO - Sustained Frequency: {self.max_frequency_sustained:.2f} Hz")
-        self.log_entries.append(f"INFO - Peak Ratio: {self.peak_frequency_ratio:.3f}")
-        self.log_entries.append(f"INFO - Sustained Ratio: {self.sustained_frequency_ratio:.3f}")
-        self.log_entries.append(f"INFO - Final Quality Estimation: {self.estimated_bitrate}")
+            if br_classification:
+                self.estimated_bitrate = f"{br_classification} {context}"
+        else:
+            self.estimated_bitrate = "Unknown Format"
+            self.estimated_bitrate_numeric = "Unknown"
 
     def _generate_spectrogram_image(self, assets_dir):
         import matplotlib.pyplot as plt
         import librosa.display
-        n_fft = 16384
-        if len(self.y) < n_fft: return
+        
+        n_fft = 4096
+        if not hasattr(self, 'y') or self.y is None or len(self.y) < n_fft: return
         S = np.abs(librosa.stft(self.y, n_fft=n_fft, hop_length=n_fft//4))
         S_dB = librosa.amplitude_to_db(S, ref=np.max)
         
@@ -233,14 +279,13 @@ class AudioFile:
         unique_filename = f"{os.path.splitext(safe_basename)[0]}_{path_hash}_spectrogram.png"
         self.spectrogram_path = os.path.join(assets_dir, unique_filename)
         
-        plt.figure(figsize=(12, 6))
-        librosa.display.specshow(S_dB, sr=self.sr, x_axis="time", y_axis="linear", hop_length=n_fft//4, cmap="viridis", fmax=self.sr/2)
-        plt.colorbar(format="%+2.0f dB")
-        plt.title(f"Spectrogram for {self.filename}")
-        plt.tight_layout()
-        plt.savefig(self.spectrogram_path)
-        plt.close()
-
+        fig, ax = plt.subplots(figsize=(12, 6))
+        librosa.display.specshow(S_dB, sr=self.sr, x_axis="time", y_axis="linear", hop_length=n_fft//4, cmap="viridis", fmax=self.sr/2, ax=ax)
+        fig.colorbar(ax.collections[0], format="%+2.0f dB", ax=ax)
+        ax.set_title(f"Spectrogram for {self.filename}")
+        fig.tight_layout()
+        fig.savefig(self.spectrogram_path)
+        plt.close(fig)
 
 class ReportGenerator(ABC):
     def __init__(self, results_data):
@@ -282,7 +327,12 @@ class CsvReportGenerator(ReportGenerator):
     def generate(self, output_path):
         import csv
         with open(output_path, "w", newline="", encoding="utf-8") as f:
-            fieldnames = ["File", "Codec", "Sample Rate (Hz)", "Max Frequency (Hz)", "Stated Bit Rate", "Estimated Quality", "Is True Lossless", "Error"]
+            fieldnames = [
+                "File", "Codec", "Sample Rate (Hz)", 
+                "Peak Frequency (Hz)", "Sustained Frequency (Hz)", 
+                "Peak Ratio", "Sustained Ratio", 
+                "Stated Bit Rate", "Estimated MP3 Equivalent", "Lossless", "Error"
+            ]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for r in self.results:
@@ -300,11 +350,14 @@ class CsvReportGenerator(ReportGenerator):
                         "File": os.path.basename(r.get("file", "Unknown")),
                         "Codec": r.get("codec", "N/A"),
                         "Sample Rate (Hz)": r.get("sample_rate", "N/A"),
-                        "Max Frequency (Hz)": f"{r.get('max_frequency', 0.0):.2f}",
+                        "Peak Frequency (Hz)": f"{r.get('max_frequency', 0.0):.2f}",
+                        "Sustained Frequency (Hz)": f"{r.get('sustained_frequency', 0.0):.2f}",
+                        "Peak Ratio": f"{r.get('peak_frequency_ratio', 0.0):.3f}",
+                        "Sustained Ratio": f"{r.get('sustained_frequency_ratio', 0.0):.3f}",
                         "Stated Bit Rate": stated_bit_rate_val,
-                        "Estimated Quality": r.get("estimated_bitrate", "N/A"),
-                        "Is True Lossless": "Yes" if r.get("is_lossless") else "No",
-                        "Error": "no"
+                        "Estimated MP3 Equivalent": r.get("estimated_bitrate_numeric", "N/A"),
+                        "Lossless": "Yes" if r.get("is_lossless") else "No",
+                        "Error": "None"
                     }
                 writer.writerow(row)
 
@@ -326,10 +379,10 @@ class ConsoleReportGenerator(ReportGenerator):
                 message += f"  Estimated Quality: {r.get('estimated_bitrate', 'N/A')}\n"
                 print(message)
 
-def worker_process_file(file_path, return_dict, generate_spectrogram, assets_dir):
+def worker_process_file(file_path, generate_spectrogram, assets_dir):
     audio_file = AudioFile(file_path)
     audio_file.analyze(generate_spectrogram_flag=generate_spectrogram, assets_dir=assets_dir)
-    return_dict[os.getpid()] = audio_file.to_dict()
+    return audio_file.to_dict()
 
 class AnalysisRunner:
     def __init__(self, config, log_filename=None, assets_dir=None):
@@ -342,7 +395,6 @@ class AnalysisRunner:
     def _setup_logger(self):
         global logger
         logger.handlers.clear()
-
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setLevel(logging.INFO)
         stream_handler.setFormatter(logging.Formatter("%(message)s"))
@@ -404,77 +456,36 @@ class AnalysisRunner:
         if not self.files_to_process:
             print("No matching files found to process.")
             return []
-
         print(f"Found {len(self.files_to_process)} file(s) to analyze.")
         
-        use_mp = self.config.multiprocessing and len(self.files_to_process) > 1
-        if use_mp:
+        if self.config.multiprocessing and len(self.files_to_process) > 1:
             return self._run_in_parallel()
         else:
             return self._run_serially()
     
     def _run_serially(self):
-        print("Running in single-threaded mode. A hanging file may freeze the script.")
+        print("Running in single-threaded mode.")
         results_data = []
         gen_spec = not self.config.no_spectrogram and not self.config.csv
+        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir)
         for file_path in tqdm(self.files_to_process, desc="Processing files (1 thread)"):
-            audio_file = AudioFile(file_path)
-            audio_file.analyze(generate_spectrogram_flag=gen_spec, assets_dir=self.assets_dir)
-            results_data.append(audio_file.to_dict())
+            results_data.append(worker_func(file_path))
         return results_data
 
     def _run_in_parallel(self):
-        try:
-            num_threads = os.cpu_count()
-        except NotImplementedError:
-            num_threads = 4
-        print(f"Multiprocessing enabled. Using {num_threads} available cores.")
-
-        TIMEOUT_PER_FILE = 90.0
-        manager = Manager()
-        return_dict = manager.dict()
-        active_processes = {}
-        results_data = []
-        files_iterator = iter(self.files_to_process)
+        num_workers = self.config.workers or os.cpu_count()
+        print(f"Multiprocessing enabled. Using {num_workers} worker processes.")
+        
         gen_spec = not self.config.no_spectrogram and not self.config.csv
-
-        with tqdm(total=len(self.files_to_process), desc=f"Processing files ({num_threads} threads)") as pbar:
-            while len(results_data) < len(self.files_to_process):
-                finished_pids = []
-                for pid, (p, file_path, start_time) in active_processes.items():
-                    if not p.is_alive():
-                        if pid in return_dict:
-                            results_data.append(return_dict[pid])
-                            del return_dict[pid]
-                        else:
-                            results_data.append({"file": file_path, "error": "Worker died unexpectedly."})
-                        finished_pids.append(pid)
-                        pbar.update(1)
-                    elif time.time() - start_time > TIMEOUT_PER_FILE:
-                        p.terminate()
-                        time.sleep(0.1)
-                        p.join()
-                        results_data.append({"file": file_path, "error": f"Processing timed out after {int(TIMEOUT_PER_FILE)}s."})
-                        finished_pids.append(pid)
-                        pbar.update(1)
-
-                for pid in finished_pids:
-                    if pid in active_processes:
-                        del active_processes[pid]
-
-                while len(active_processes) < num_threads:
-                    try:
-                        next_file = next(files_iterator)
-                        p = Process(target=worker_process_file, args=(next_file, return_dict, gen_spec, self.assets_dir))
-                        p.start()
-                        active_processes[p.pid] = (p, next_file, time.time())
-                    except StopIteration:
-                        break
-                
-                if not active_processes and len(results_data) == len(self.files_to_process):
-                    break
-                    
-                time.sleep(0.2)
+        
+        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir)
+        results_data = []
+        
+        with Pool(processes=num_workers, maxtasksperchild=1) as pool:
+            with tqdm(total=len(self.files_to_process), desc=f"Processing files ({num_workers} threads)") as pbar:
+                for result in pool.imap_unordered(worker_func, self.files_to_process):
+                    results_data.append(result)
+                    pbar.update()
         return results_data
 
     def write_logs(self, results_data):
@@ -490,7 +501,6 @@ class AnalysisRunner:
                     for entry in result["log_entries"]:
                          f.write(f"{timestamp_now} - {entry}\n")
         print("Log file written.")
-
 
 def main():
     if sys.platform.startswith('darwin') or sys.platform.startswith('win32'):
@@ -513,6 +523,7 @@ def main():
 
     util_group = parser.add_argument_group('Performance & Utility Arguments')
     util_group.add_argument("-m", "--multiprocessing", action='store_true', help="Enable multiprocessing using all available CPU cores.")
+    util_group.add_argument("-w", "--workers", type=int, help="Set the number of worker processes. Defaults to the number of CPU cores.")
     util_group.add_argument("-n", "--no-spectrogram", action="store_true", help="Disable spectrogram generation in HTML reports.")
     util_group.add_argument("-l", "--log", action="store_true", help="Enable verbose logging to a uniquely named log file.")
     util_group.add_argument("--ffprobe-path", help="Specify the full path to the ffprobe executable.")

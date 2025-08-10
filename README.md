@@ -28,8 +28,6 @@ The script supports a wide variety of lossy and lossless audio formats, includin
 - **Python Libraries:** See `requirements.txt`.
 
 ## Installation
-- Download a [release](https://github.com/oren-cohen/whatsmybitrate/releases)
-  OR
 ### Clone the repository
 ```bash
 git clone https://github.com/oren-cohen/whatsmybitrate.git
