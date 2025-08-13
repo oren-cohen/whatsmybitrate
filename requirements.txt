@@ -4,3 +4,4 @@ numpy<2
 tqdm>=4.66.0
 soundfile>=0.12.1
 audioread>=2.1.9
+scipy>=1.10.0,<1.14.0
