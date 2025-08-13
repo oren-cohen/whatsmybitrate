@@ -7,14 +7,14 @@
 ## Overview
 **WhatsMyBitrate** is a powerful command-line tool for analyzing audio files in bulk. It provides detailed quality metrics, estimates perceptual quality based on spectral analysis, and generates spectrograms for visual inspection. By processing entire directories recursively with multi-threading, it's an efficient solution for managing and verifying large audio collections.
 
-The script supports a wide variety of lossy and lossless audio formats, including MP3, FLAC, WAV, AAC, M4A, Opus, and more.
+The script supports a wide variety of lossy and lossless audio formats, including MP3, FLAC, WAV, AAC, M4A, and more.
 
 ## Features
 - **Detailed Quality Analysis:** Reports codec, sample rate, stated bit rate, and more.
 - **Perceptual Quality Estimation:** Estimates the equivalent bitrate (e.g., 128, 192, 256, 320 kbps) based on spectral frequency cutoffs.
 - **Spectrogram Generation:** Creates spectrogram images for visual analysis of the audio spectrum.
 - **Cross-Platform:** Full support for **Windows, macOS, and Linux**.
-- **Broad Format Support:** Analyzes `mp3`, `flac`, `wav`, `aac`, `ogg`, `m4a`, `aiff`, `opus`, and `alac` files.
+- **Broad Format Support:** Analyzes `mp3`, `flac`, `wav`, `aac`, `ogg`, `m4a`, `aiff`, and `alac` files.
 - **Batch Processing:** Analyze entire directories of audio files at once.
 - **Recursive Scanning:** Use the `-r` flag to scan all subdirectories.
 - **High-Performance:** Use the `-m` flag to enable multiprocessing and analyze files significantly faster.
