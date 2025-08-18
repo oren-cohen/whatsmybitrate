@@ -22,7 +22,7 @@ The script supports a wide variety of lossy and lossless audio formats, includin
 - **Automatic Organization:** Reports and assets are saved into a new, uniquely named directory for each run.
 
 ## Requirements
-- **OS:** Windows, macOS, or Linux
+- **OS:** Windows, OS X, or Linux
 - **Python:** 3.8 to 3.12  (3.13 coming soon)
 - **FFmpeg:** Required for metadata extraction.
 - **Python Libraries:** See `requirements.txt`.
