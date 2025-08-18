@@ -23,7 +23,7 @@ The script supports a wide variety of lossy and lossless audio formats, includin
 
 ## Requirements
 - **OS:** Windows, macOS, or Linux
-- **Python:** 3.8 or later
+- **Python:** 3.8 to 3.12  (3.13 coming soon)
 - **FFmpeg:** Required for metadata extraction.
 - **Python Libraries:** See `requirements.txt`.
 
