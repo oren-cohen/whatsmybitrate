@@ -129,7 +129,6 @@ python whatsmybitrate.py /path/to/archive -a -r -n
 - MP3
 - AAC
 - M4A
-- Opus
 - OGG (Vorbis)
 - AIFF
 
