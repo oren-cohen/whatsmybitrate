@@ -3,7 +3,7 @@
 import os
 import glob
 import matplotlib
-import multiprocessing 
+import multiprocessing
 matplotlib.use('Agg')
 from datetime import datetime
 import argparse
@@ -13,7 +13,7 @@ import sys
 import warnings
 from abc import ABC, abstractmethod
 import fnmatch
-from multiprocessing import Pool 
+from multiprocessing import Pool
 import shutil
 from functools import partial
 
@@ -156,7 +156,7 @@ class AnalysisRunner:
     def _setup_logger(self):
         log_level = logging.DEBUG if self.config.log else logging.INFO
         logger.setLevel(log_level)
-        
+
         if logger.hasHandlers():
             logger.handlers.clear()
 
@@ -218,7 +218,7 @@ class AnalysisRunner:
         logger.info(f"Found {len(self.files_to_process)} file(s) to analyze.")
 
         gen_spec = not self.config.no_spectrogram and not self.config.csv
-        
+
         if self.config.multiprocessing and len(self.files_to_process) > 1:
             return self._run_in_parallel(gen_spec)
         else:
@@ -276,7 +276,7 @@ def main():
     type_group.add_argument("-t", "--type", help="Scan for a single file TYPE (e.g., 'mp3', 'flac').")
     type_group.add_argument("-a", "--all", action="store_true", help="Scan for all supported audio types. Overrides specific patterns.")
     scan_group.add_argument("-r", "--recursive", action="store_true", help="Scan directories recursively.")
-    
+
     util_group = parser.add_argument_group('Utility Arguments')
     util_group.add_argument("--ffprobe-path", help="Specify the full path to the ffprobe executable.")
     util_group.add_argument("-n", "--no-spectrogram", action="store_true", help="Disable spectrogram generation for HTML reports.")
@@ -305,10 +305,10 @@ def main():
 
     output_format = 'csv' if args.csv else 'html'
     report_path = os.path.join(output_dir, f"{base_name}.{output_format}")
-    
+
     log_path = os.path.join(output_dir, f"{base_name}.log") if args.log else None
     assets_path = os.path.join(output_dir, 'assets') if not args.no_spectrogram and not args.csv else None
-    
+
     if assets_path:
         os.makedirs(assets_path, exist_ok=True)
 
@@ -323,13 +323,13 @@ def main():
         reporter = CsvReportGenerator(results_data)
     else:
         reporter = HtmlReportGenerator(results_data)
-    
+
     reporter.generate(report_path)
     logger.info(f"Report saved to: {report_path}")
-    
+
     console_reporter = ConsoleReportGenerator(results_data)
     console_reporter.generate()
-    
+
     runner.write_logs(results_data)
 
     logger.info(f"\nAnalysis complete. All outputs saved in directory: {output_dir}")

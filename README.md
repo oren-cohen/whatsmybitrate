@@ -152,12 +152,12 @@ A visual report containing:
 - Spectrogram image (if generated)
 
 ### CSV Report (`.csv`)
-Contains the same metrics in a tabular format for spreadsheets, analysis, or integration with other tools.  
+Contains the same metrics in a tabular format for spreadsheets, analysis, or integration with other tools.
 *(No spectrogram images in CSV.)*
 
 ## Troubleshooting
 
-**FFmpeg Not Found**  
+**FFmpeg Not Found**
 If you see:
 ```
 ERROR: ffprobe executable not found
@@ -166,7 +166,7 @@ ERROR: ffprobe executable not found
 - Or ensure its location is in your system's PATH.
 - Or use the `--ffprobe-path` argument.
 
-**Errors in Logs**  
+**Errors in Logs**
 Run with the `-l` flag to generate a detailed log file inside the report directory for debugging.
 
 ## License

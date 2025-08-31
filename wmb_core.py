@@ -94,7 +94,7 @@ class AudioFile:
             if generate_spectrogram_flag and assets_dir and self.y is not None:
                 self.log_entries.append("DEBUG - Step 5: Generating spectrogram.")
                 self._generate_spectrogram_image(assets_dir)
-            
+
             self.log_entries.append("INFO - Analysis workflow completed successfully.")
 
         except Exception as e:
@@ -133,15 +133,15 @@ class AudioFile:
     def _extract_metadata(self):
         try:
             cmd = [self.ffprobe_path, "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=bit_rate,codec_name,duration", "-of", "json", self.path]
-            
+
             startupinfo = None
             if sys.platform == "win32":
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            
+
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, timeout=60, startupinfo=startupinfo)
             stream = json.loads(result.stdout).get("streams", [{}])[0]
-            
+
             self.codec = stream.get("codec_name", "Unknown")
             stated_bit_rate = stream.get("bit_rate")
 
@@ -159,7 +159,7 @@ class AudioFile:
 
         except Exception as e:
             raise RuntimeError(f"Metadata extraction failed: {e}")
-        
+
     def _analyze_spectrum(self):
         TARGET_HZ_RESOLUTION = 5.0
         RELATIVE_DB_THRESHOLD = -90.0
@@ -183,15 +183,15 @@ class AudioFile:
         if np.max(psd) <= 0:
             self.max_frequency_peak = self.max_frequency_sustained = 0.0
             return
-            
+
         psd_dB = 10 * np.log10(psd / np.max(psd))
 
         significant_indices = np.where(psd_dB > RELATIVE_DB_THRESHOLD)[0]
-        
+
         if significant_indices.size == 0:
             max_freq = 0.0
         else:
-            diffs_hz = np.diff(frequencies[significant_indices])            
+            diffs_hz = np.diff(frequencies[significant_indices])
             gap_locations = np.where(diffs_hz > GAP_HZ_THRESHOLD)[0]
             if gap_locations.size > 0:
                 end_of_signal_index = significant_indices[gap_locations[0]]
@@ -206,14 +206,14 @@ class AudioFile:
             candidate_indices = significant_indices[frequencies[significant_indices] < 24000]
             if candidate_indices.size > 0:
                 max_freq = frequencies[candidate_indices[-1]]
-        
+
         if max_freq/(self.sr/2) > 0.99:
             significant_indices = np.where(psd_dB > FALLBACK_DB_THRESHOLD)[0]
-            
+
             if significant_indices.size == 0:
                 max_freq = 0.0
             else:
-                diffs_hz = np.diff(frequencies[significant_indices])            
+                diffs_hz = np.diff(frequencies[significant_indices])
                 gap_locations = np.where(diffs_hz > GAP_HZ_THRESHOLD)[0]
                 if gap_locations.size > 0:
                     end_of_signal_index = significant_indices[gap_locations[0]]
@@ -227,8 +227,8 @@ class AudioFile:
             if is_high_res_lossless and max_freq > 24000:
                 candidate_indices = significant_indices[frequencies[significant_indices] < 24000]
                 if candidate_indices.size > 0:
-                    max_freq = frequencies[candidate_indices[-1]]        
-    
+                    max_freq = frequencies[candidate_indices[-1]]
+
         self.max_frequency_peak = max_freq
 
     def _classify_by_absolute_frequency(self, freq_hz):
@@ -254,7 +254,7 @@ class AudioFile:
         lossless_codecs = {"wav", "flac", "aiff", "alac", "pcm_s16le", "pcm_s24le", "pcm_s32le"}
         br, num = "", 0
         context = ""
-        
+
         if codec_lower in lossless_codecs:
             if self.peak_frequency_ratio >= 0.95:
                 self.estimated_bitrate = "Lossless"
@@ -263,7 +263,7 @@ class AudioFile:
             else:
                 context = "(Transcoded)"
                 br, num = self._classify_by_absolute_frequency(self.max_frequency_peak)
-        
+
         else:
             context = f"({self.codec.upper() if self.codec else 'Lossy'})"
             br, num = self._classify_by_absolute_frequency(self.max_frequency_peak)
@@ -277,7 +277,7 @@ class AudioFile:
         if self.y is None or self.sr is None:
             self.log_entries.append("WARN - Skipping spectrogram generation: audio data not available.")
             return
-            
+
         self.log_entries.append("INFO - Generating spectrogram.")
         try:
             import matplotlib.pyplot as plt
