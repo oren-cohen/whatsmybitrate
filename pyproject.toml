@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "whatsmybitrate"
+version = "0.0.1"
+dependencies = [
+"librosa>=0.11.0",
+"matplotlib>=3.7.1",
+"numpy<2",
+"tqdm>=4.66.0",
+"soundfile>=0.12.1",
+"audioread>=2.1.9",
+"scipy>=1.10.0,<1.14.0",
+]
+requires-python = ">=3.8,<3.13"

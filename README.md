@@ -34,9 +34,17 @@ git clone https://github.com/oren-cohen/whatsmybitrate.git
 cd whatsmybitrate
 ```
 
-### Install Python dependencies
+### (Recommended) set up a virtual environment for the package
+
 ```bash
-pip install -r requirements.txt
+python -m venv .wmbr-venv
+source .wmbr-venv/bin/activate
+```
+
+### Install this package with its dependencies
+
+```bash
+pip install -e .
 ```
 
 ### Install FFmpeg
@@ -73,7 +81,7 @@ The script is invoked from the command line with options and input targets. Inpu
 
 ### View available arguments
 ```bash
-python whatsmybitrate.py -h
+python -m whatsmybitrate -h
 ```
 
 **Output:**
@@ -103,23 +111,23 @@ Performance & Utility Arguments:
 
 **Analyze all supported audio files in the current directory:**
 ```bash
-python whatsmybitrate.py . -a
+python -m whatsmybitrate . -a
 ```
 
 **Analyze all `.flac` files in a specific directory and subfolders, using multiprocessing:**
 ```bash
-python whatsmybitrate.py /path/to/music -t flac -r -m
+python -m whatsmybitrate /path/to/music -t flac -r -m
 ```
 
 **Generate a CSV report for specific MP3 files:**
 ```bash
-python whatsmybitrate.py "song 1.mp3" "another song.mp3" -c
+python -m whatsmybitrate "song 1.mp3" "another song.mp3" -c
 ```
 *Note: On Windows `cmd`, glob patterns like `*.mp3` are not automatically expanded. Use `-a` or `-t` instead.*
 
 **Analyze a directory recursively and disable spectrograms and logging:**
 ```bash
-python whatsmybitrate.py /path/to/archive -a -r -n
+python -m whatsmybitrate /path/to/archive -a -r -n
 ```
 
 ## Supported Audio Formats

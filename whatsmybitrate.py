@@ -265,7 +265,7 @@ def main():
         except RuntimeError:
             pass
 
-    parser = argparse.ArgumentParser(prog="whatsmybitrate.py", description="Analyzes audio files to estimate their true quality.", formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(prog="whatsmybitrate", description="Analyzes audio files to estimate their true quality.", formatter_class=argparse.RawTextHelpFormatter)
     io_group = parser.add_argument_group('Input & Output Arguments')
     io_group.add_argument("input", nargs="*", help="One or more audio files, a directory, or a shell glob pattern (e.g., 'C:\\Music\\*.flac').")
     io_group.add_argument("-c", "--csv", action='store_true', help="Output the report in CSV format.")
