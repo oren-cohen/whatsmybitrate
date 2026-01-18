@@ -1,7 +1,11 @@
 librosa>=0.11.0
-matplotlib>=3.7.1
-numpy<2
 tqdm>=4.66.0
 soundfile>=0.12.1
-audioread>=2.1.9
-scipy>=1.10.0,<1.14.0
+audioread>=3.0.0
+matplotlib>=3.7.1
+
+numpy>=1.23,<2.0 ; python_version < "3.13"
+numpy>=2.0.0 ; python_version >= "3.13"
+
+scipy>=1.10,<1.14 ; python_version < "3.13"
+scipy>=1.14.0 ; python_version >= "3.13"
