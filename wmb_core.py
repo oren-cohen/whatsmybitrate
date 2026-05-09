@@ -73,6 +73,19 @@ class AudioFile:
             "is_lossless": self.is_lossless, "spectrogram_path": self.spectrogram_path,
             "log_entries": self.log_entries
         }
+        
+    def _is_lossless_codec(self):
+        if not self.codec:
+            return False
+            
+        c = self.codec.lower()
+        LOSSLESS_CODECS = {
+            "flac", "alac", "wavpack", "ape", "tak", "tta",
+            "mlp", "truehd", "dsd_lsbf", "dsd_msbf"
+        }
+        
+        # Matches specific lossless codecs OR any PCM variant (e.g. pcm_s16le, pcm_f32be)
+        return c in LOSSLESS_CODECS or c.startswith("pcm_")
 
     def analyze(self, generate_spectrogram_flag=False, assets_dir=None):
         self.log_entries.append("INFO - Starting full analysis workflow.")
@@ -199,8 +212,7 @@ class AudioFile:
             else:
                 max_freq = frequencies[significant_indices[-1]]
 
-        lossless_codecs = {"wav", "flac", "aiff", "alac", "pcm_s16le", "pcm_s24le", "pcm_s32le"}
-        is_high_res_lossless = (self.codec and self.codec.lower() in lossless_codecs and self.sr > 48000)
+        is_high_res_lossless = (self._is_lossless_codec() and self.sr > 48000)
 
         if is_high_res_lossless and max_freq > 24000:
             candidate_indices = significant_indices[frequencies[significant_indices] < 24000]
@@ -221,8 +233,7 @@ class AudioFile:
                 else:
                     max_freq = frequencies[significant_indices[-1]]
 
-            lossless_codecs = {"wav", "flac", "aiff", "alac", "pcm_s16le", "pcm_s24le", "pcm_s32le"}
-            is_high_res_lossless = (self.codec and self.codec.lower() in lossless_codecs and self.sr > 48000)
+            is_high_res_lossless = (self._is_lossless_codec() and self.sr > 48000)
 
             if is_high_res_lossless and max_freq > 24000:
                 candidate_indices = significant_indices[frequencies[significant_indices] < 24000]
@@ -248,14 +259,12 @@ class AudioFile:
             return
 
         self.nyquist_frequency = self.sr / 2
-        codec_lower = (self.codec or "").lower()
         self.peak_frequency_ratio = self.max_frequency_peak / self.nyquist_frequency
 
-        lossless_codecs = {"wav", "flac", "aiff", "alac", "pcm_s16le", "pcm_s24le", "pcm_s32le"}
         br, num = "", 0
         context = ""
         
-        if codec_lower in lossless_codecs:
+        if self._is_lossless_codec():
             if self.peak_frequency_ratio >= 0.95:
                 self.estimated_bitrate = "Lossless"
                 self.estimated_bitrate_numeric = "Lossless"
