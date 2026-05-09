@@ -233,7 +233,6 @@ class AnalysisRunner:
     def _run_serially(self, gen_spec):
         logger.info("Running in single-threaded mode.")
         results_data = []
-        # ---> FIX APPLIED HERE: Sending AudioFile.ffprobe_path into the worker
         worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir, ffprobe_path=AudioFile.ffprobe_path)
         for file_path in tqdm(self.files_to_process, desc="Processing files (1 thread)"):
             results_data.append(worker_func(file_path))
@@ -242,7 +241,6 @@ class AnalysisRunner:
     def _run_in_parallel(self, gen_spec):
         num_workers = self.config.workers or os.cpu_count()
         logger.info(f"Multiprocessing enabled. Using {num_workers} worker processes.")
-        # ---> FIX APPLIED HERE: Sending AudioFile.ffprobe_path into the workers
         worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir, ffprobe_path=AudioFile.ffprobe_path)
         results_data = []
         with Pool(processes=num_workers, maxtasksperchild=1) as pool:
