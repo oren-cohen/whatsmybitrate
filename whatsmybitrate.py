@@ -1,9 +1,8 @@
-# whatsmybitrate.py
-
 import os
 import glob
 import matplotlib
 import multiprocessing 
+import gc
 matplotlib.use('Agg')
 from datetime import datetime
 import argparse
@@ -139,10 +138,17 @@ class ConsoleReportGenerator(ReportGenerator):
                 print(message)
 
 
-def worker_process_file(file_path, generate_spectrogram, assets_dir):
+def worker_process_file(file_path, generate_spectrogram, assets_dir, ffprobe_path):
+    AudioFile.ffprobe_path = ffprobe_path
+    
     audio_file = AudioFile(file_path)
     audio_file.analyze(generate_spectrogram_flag=generate_spectrogram, assets_dir=assets_dir)
-    return audio_file.to_dict()
+    res_dict = audio_file.to_dict()
+    
+    del audio_file
+    gc.collect()
+    
+    return res_dict
 
 
 class AnalysisRunner:
@@ -227,7 +233,8 @@ class AnalysisRunner:
     def _run_serially(self, gen_spec):
         logger.info("Running in single-threaded mode.")
         results_data = []
-        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir)
+        # ---> FIX APPLIED HERE: Sending AudioFile.ffprobe_path into the worker
+        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir, ffprobe_path=AudioFile.ffprobe_path)
         for file_path in tqdm(self.files_to_process, desc="Processing files (1 thread)"):
             results_data.append(worker_func(file_path))
         return results_data
@@ -235,7 +242,8 @@ class AnalysisRunner:
     def _run_in_parallel(self, gen_spec):
         num_workers = self.config.workers or os.cpu_count()
         logger.info(f"Multiprocessing enabled. Using {num_workers} worker processes.")
-        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir)
+        # ---> FIX APPLIED HERE: Sending AudioFile.ffprobe_path into the workers
+        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir, ffprobe_path=AudioFile.ffprobe_path)
         results_data = []
         with Pool(processes=num_workers, maxtasksperchild=1) as pool:
             with tqdm(total=len(self.files_to_process), desc=f"Processing files ({num_workers} threads)") as pbar:

@@ -4,6 +4,7 @@ import json
 import logging
 import warnings
 import subprocess
+import gc
 from contextlib import contextmanager
 from uuid import uuid4
 import numpy as np
@@ -84,7 +85,6 @@ class AudioFile:
             "mlp", "truehd", "dsd_lsbf", "dsd_msbf"
         }
         
-        # Matches specific lossless codecs OR any PCM variant (e.g. pcm_s16le, pcm_f32be)
         return c in LOSSLESS_CODECS or c.startswith("pcm_")
 
     def analyze(self, generate_spectrogram_flag=False, assets_dir=None):
@@ -118,6 +118,7 @@ class AudioFile:
                 del self.y
                 self.y = None
                 self.log_entries.append("DEBUG - Audio data cleared from memory.")
+            gc.collect()
 
     def _load_audio_data(self):
         self.log_entries.append(f"INFO - Loading up to {MAX_LOAD_SECONDS}s of audio data.")
@@ -195,6 +196,7 @@ class AudioFile:
 
         if np.max(psd) <= 0:
             self.max_frequency_peak = self.max_frequency_sustained = 0.0
+            del normalized_y, frequencies, psd
             return
             
         psd_dB = 10 * np.log10(psd / np.max(psd))
@@ -241,6 +243,8 @@ class AudioFile:
                     max_freq = frequencies[candidate_indices[-1]]        
     
         self.max_frequency_peak = max_freq
+        
+        del normalized_y, frequencies, psd, psd_dB
 
     def _classify_by_absolute_frequency(self, freq_hz):
         if freq_hz >= 19500:
@@ -314,7 +318,11 @@ class AudioFile:
         ax.set_title(f"Spectrogram (first {len(y_plot) / float(self.sr):.2f}s)")
         fig.tight_layout()
         fig.savefig(out_path)
-        plt.close(fig)
+        
+        fig.clf() 
+        plt.close('all')
+        
+        del y_plot, S, S_dB, fig, ax
 
         self.spectrogram_path = out_path
         self.log_entries.append(f"INFO - Spectrogram saved to {out_path}")
