@@ -1,7 +1,6 @@
 import os
 import glob
 import matplotlib
-import multiprocessing 
 import gc
 matplotlib.use('Agg')
 from datetime import datetime
@@ -12,7 +11,6 @@ import sys
 import warnings
 from abc import ABC, abstractmethod
 import fnmatch
-from multiprocessing import Pool 
 import shutil
 from functools import partial
 
@@ -21,30 +19,26 @@ from wmb_core import AudioFile, SUPPORTED_FORMATS
 warnings.filterwarnings('ignore', category=UserWarning, message='Xing stream size.*')
 warnings.filterwarnings('ignore', category=UserWarning, message='PySoundFile failed.*')
 warnings.filterwarnings('ignore', category=FutureWarning, message='.*audioread_load.*')
-
 logger = logging.getLogger("audio_analysis")
-MAX_LOAD_SECONDS = 300.0
 
-
-def find_ffprobe_path(user_path=None):
+def find_executable(binary_name, user_path=None):
     if user_path:
         if shutil.which(user_path):
             return user_path
         else:
-            sys.exit(f"Error: The provided ffprobe path '{user_path}' is not a valid executable.")
+            sys.exit(f"Error: The provided path '{user_path}' is not a valid executable.")
 
-    executable_name = "ffprobe.exe" if sys.platform == "win32" else "ffprobe"
+    executable_name = f"{binary_name}.exe" if sys.platform == "win32" else binary_name
     script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     local_path = os.path.join(script_dir, executable_name)
     if os.path.isfile(local_path) and os.access(local_path, os.X_OK):
         return local_path
 
-    path_from_which = shutil.which("ffprobe")
+    path_from_which = shutil.which(binary_name)
     if path_from_which:
         return path_from_which
 
     return None
-
 
 class ReportGenerator(ABC):
     def __init__(self, results_data):
@@ -68,32 +62,23 @@ class HtmlReportGenerator(ReportGenerator):
                 if r.get('error'):
                     f.write(f"<p><strong>ERROR:</strong> {r['error']}</p>")
                 else:
-                    max_freq_val = r.get('max_frequency', 0.0)
                     f.write(f"<p><strong>Codec:</strong> {r.get('codec', 'N/A')}</p>")
                     f.write(f"<p><strong>Sample Rate:</strong> {r.get('sample_rate', 'N/A')} Hz</p>")
-                    f.write(f"<p><strong>Max Frequency:</strong> {max_freq_val:.2f} Hz</p>")
                     f.write(f"<p><strong>Stated Bit Rate:</strong> {r.get('bit_rate', 'N/A')}</p>")
-                    f.write(f"<p><strong>Estimated Quality:</strong> {r.get('estimated_bitrate', 'N/A')}</p>")
+                    f.write(f"<p><strong>Detected Quality:</strong> {r.get('estimated_bitrate', 'N/A')}</p>")
                     f.write(f"<p><strong>Is True Lossless:</strong> {'Yes' if r.get('is_lossless') else 'No'}</p>")
                     spectrogram_path = r.get('spectrogram_path')
                     if spectrogram_path and os.path.exists(spectrogram_path):
-                        relative_image_path = os.path.relpath(spectrogram_path, report_dir)
-                        relative_image_path = relative_image_path.replace('\\', '/')
+                        relative_image_path = os.path.relpath(spectrogram_path, report_dir).replace('\\', '/')
                         f.write(f"<img src='{relative_image_path}' alt='Spectrogram'>")
                 f.write("</div>")
             f.write("</body></html>")
-
 
 class CsvReportGenerator(ReportGenerator):
     def generate(self, output_path):
         import csv
         with open(output_path, "w", newline="", encoding="utf-8") as f:
-            fieldnames = [
-                "File", "Codec", "Sample Rate (Hz)",
-                "Peak Frequency (Hz)",
-                "Peak Ratio",
-                "Stated Bit Rate", "Estimated Quality", "Lossless", "Error"
-            ]
+            fieldnames = ["File", "Codec", "Stated Bit Rate", "Detected Quality", "Lossless", "Error"]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for r in self.results:
@@ -110,16 +95,12 @@ class CsvReportGenerator(ReportGenerator):
                     row = {
                         "File": os.path.basename(r.get("file", "Unknown")),
                         "Codec": r.get("codec", "N/A"),
-                        "Sample Rate (Hz)": r.get("sample_rate", "N/A"),
-                        "Peak Frequency (Hz)": f"{r.get('max_frequency', 0.0):.2f}",
-                        "Peak Ratio": f"{r.get('peak_frequency_ratio', 0.0):.3f}",
                         "Stated Bit Rate": stated_bit_rate_val,
-                        "Estimated Quality": r.get("estimated_bitrate_numeric", "N/A"),
+                        "Detected Quality": r.get("estimated_bitrate_numeric", "N/A"),
                         "Lossless": "Yes" if r.get("is_lossless") else "No",
                         "Error": "None"
                     }
                 writer.writerow(row)
-
 
 class ConsoleReportGenerator(ReportGenerator):
     def generate(self, output_path=None):
@@ -128,28 +109,22 @@ class ConsoleReportGenerator(ReportGenerator):
             if r.get('error'):
                 print(f"File: {os.path.basename(r['file'])}\n  ERROR: {r['error']}")
             else:
-                message = (f"File: {os.path.basename(r['file'])}\n"
-                           f"  Codec: {r.get('codec', 'N/A')}\n"
-                           f"  Sample Rate: {r.get('sample_rate', 'N/A')} Hz\n"
-                           f"  Max Frequency: {r.get('max_frequency', 0.0):.2f} Hz\n")
-                if r.get('peak_frequency_ratio') is not None:
-                    message += f"  Peak Frequency Ratio: {r['peak_frequency_ratio']:.3f}\n"
-                message += f"  Estimated Quality: {r.get('estimated_bitrate', 'N/A')}\n"
-                print(message)
+                print(f"File: {os.path.basename(r['file'])}\n"
+                      f"  Codec: {r.get('codec', 'N/A')}\n"
+                      f"  Detected Quality: {r.get('estimated_bitrate', 'N/A')}\n")
 
-
-def worker_process_file(file_path, generate_spectrogram, assets_dir, ffprobe_path):
+def worker_process_file(file_path, generate_spectrogram, assets_dir, ffprobe_path, ffmpeg_path):
     AudioFile.ffprobe_path = ffprobe_path
-    
+    AudioFile.ffmpeg_path = ffmpeg_path
+
     audio_file = AudioFile(file_path)
     audio_file.analyze(generate_spectrogram_flag=generate_spectrogram, assets_dir=assets_dir)
     res_dict = audio_file.to_dict()
-    
+
     del audio_file
     gc.collect()
-    
-    return res_dict
 
+    return res_dict
 
 class AnalysisRunner:
     def __init__(self, config, log_filename=None, assets_dir=None):
@@ -162,7 +137,7 @@ class AnalysisRunner:
     def _setup_logger(self):
         log_level = logging.DEBUG if self.config.log else logging.INFO
         logger.setLevel(log_level)
-        
+
         if logger.hasHandlers():
             logger.handlers.clear()
 
@@ -174,12 +149,9 @@ class AnalysisRunner:
         if self.log_filename:
             file_handler = logging.FileHandler(self.log_filename, mode="w", encoding="utf-8")
             file_handler.setLevel(logging.DEBUG)
-            formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-            file_handler.setFormatter(formatter)
+            file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
             logger.addHandler(file_handler)
             logger.info(f"Verbose logging enabled. Log file: {self.log_filename}")
-        else:
-            logger.info("Standard logging enabled. Use -l for more details.")
 
     def _scan_files(self):
         paths = self.config.input
@@ -221,33 +193,30 @@ class AnalysisRunner:
         if not self.files_to_process:
             logger.warning("No matching files found to process.")
             return []
+
         logger.info(f"Found {len(self.files_to_process)} file(s) to analyze.")
-
         gen_spec = not self.config.no_spectrogram and not self.config.csv
-        
-        if self.config.multiprocessing and len(self.files_to_process) > 1:
-            return self._run_in_parallel(gen_spec)
-        else:
-            return self._run_serially(gen_spec)
 
-    def _run_serially(self, gen_spec):
-        logger.info("Running in single-threaded mode.")
         results_data = []
-        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir, ffprobe_path=AudioFile.ffprobe_path)
-        for file_path in tqdm(self.files_to_process, desc="Processing files (1 thread)"):
-            results_data.append(worker_func(file_path))
-        return results_data
+        worker_func = partial(
+            worker_process_file,
+            generate_spectrogram=gen_spec,
+            assets_dir=self.assets_dir,
+            ffprobe_path=AudioFile.ffprobe_path,
+            ffmpeg_path=AudioFile.ffmpeg_path
+        )
 
-    def _run_in_parallel(self, gen_spec):
-        num_workers = self.config.workers or os.cpu_count()
-        logger.info(f"Multiprocessing enabled. Using {num_workers} worker processes.")
-        worker_func = partial(worker_process_file, generate_spectrogram=gen_spec, assets_dir=self.assets_dir, ffprobe_path=AudioFile.ffprobe_path)
-        results_data = []
-        with Pool(processes=num_workers, maxtasksperchild=1) as pool:
-            with tqdm(total=len(self.files_to_process), desc=f"Processing files ({num_workers} threads)") as pbar:
-                for result in pool.imap_unordered(worker_func, self.files_to_process):
+        if getattr(self.config, 'multiprocessing', False):
+            import multiprocessing
+            workers = getattr(self.config, 'workers', None) or multiprocessing.cpu_count()
+            logger.info(f"Using multiprocessing with {workers} workers.")
+            with multiprocessing.Pool(processes=workers) as pool:
+                for result in tqdm(pool.imap_unordered(worker_func, self.files_to_process), total=len(self.files_to_process), desc="Analyzing"):
                     results_data.append(result)
-                    pbar.update()
+        else:
+            for file_path in tqdm(self.files_to_process, desc="Analyzing"):
+                results_data.append(worker_func(file_path))
+
         return results_data
 
     def write_logs(self, results_data):
@@ -263,46 +232,42 @@ class AnalysisRunner:
                         f.write(f"{entry}\n")
         logger.info("Log file written.")
 
-
 def main():
-    if sys.platform != "linux":
-        try:
-            multiprocessing.set_start_method('spawn', force=True)
-        except RuntimeError:
-            pass
-
-    parser = argparse.ArgumentParser(prog="whatsmybitrate.py", description="Analyzes audio files to estimate their true quality.", formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        prog="whatsmybitrate.py",
+        description="Audio forensics analyzer.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
     io_group = parser.add_argument_group('Input & Output Arguments')
-    io_group.add_argument("input", nargs="*", help="One or more audio files, a directory, or a shell glob pattern (e.g., 'C:\\Music\\*.flac').")
+    io_group.add_argument("input", nargs="*", help="One or more audio files, a directory, or a shell glob pattern.")
     io_group.add_argument("-c", "--csv", action='store_true', help="Output the report in CSV format.")
-    io_group.add_argument("-l", "--log", action="store_true", help="Enable verbose logging to a file in the output directory.")
+    io_group.add_argument("-l", "--log", action="store_true", help="Enable verbose logging.")
 
     scan_group = parser.add_argument_group('File Scanning Arguments')
     type_group = scan_group.add_mutually_exclusive_group()
     type_group.add_argument("-t", "--type", help="Scan for a single file TYPE (e.g., 'mp3', 'flac').")
-    type_group.add_argument("-a", "--all", action="store_true", help="Scan for all supported audio types. Overrides specific patterns.")
+    type_group.add_argument("-a", "--all", action="store_true", help="Scan for all supported audio types.")
     scan_group.add_argument("-r", "--recursive", action="store_true", help="Scan directories recursively.")
-    
+
     util_group = parser.add_argument_group('Utility Arguments')
-    util_group.add_argument("--ffprobe-path", help="Specify the full path to the ffprobe executable.")
-    util_group.add_argument("-n", "--no-spectrogram", action="store_true", help="Disable spectrogram generation for HTML reports.")
-    util_group.add_argument("-m", "--multiprocessing", action='store_true', help="Enable multiprocessing (uses all available CPU cores).")
-    util_group.add_argument("-w", "--workers", type=int, help="Specify number of worker processes (implies -m).")
+    util_group.add_argument("-n", "--no-spectrogram", action="store_true", help="Disable spectrogram generation.")
+
+    parser.add_argument("-m", "--multiprocessing", action='store_true', help="Enable multiprocessor support to analyze files concurrently.")
+    parser.add_argument("-w", "--workers", type=int, help="Number of worker processes to use (defaults to CPU count).")
 
     args = parser.parse_args()
-    if args.workers:
-        args.multiprocessing = True
 
     if not args.input:
         parser.print_help(sys.stderr)
         sys.exit("\nError: No input file, directory, or pattern specified.")
 
-    AudioFile.ffprobe_path = find_ffprobe_path(args.ffprobe_path)
-    if not AudioFile.ffprobe_path:
+    AudioFile.ffprobe_path = find_executable("ffprobe")
+    AudioFile.ffmpeg_path = find_executable("ffmpeg")
+
+    if not AudioFile.ffprobe_path or not AudioFile.ffmpeg_path:
         sys.exit(
-            "ERROR: ffprobe executable not found.\n"
-            "Please add ffprobe to your system's PATH, place it in the script's directory,\n"
-            "or specify its location using the --ffprobe-path argument."
+            "ERROR: Missing essential binaries.\n"
+            "Please ensure 'ffprobe' and 'ffmpeg' are in this script's directory or your system PATH."
         )
 
     base_name = f"whatsmybitrate_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -311,10 +276,9 @@ def main():
 
     output_format = 'csv' if args.csv else 'html'
     report_path = os.path.join(output_dir, f"{base_name}.{output_format}")
-    
     log_path = os.path.join(output_dir, f"{base_name}.log") if args.log else None
     assets_path = os.path.join(output_dir, 'assets') if not args.no_spectrogram and not args.csv else None
-    
+
     if assets_path:
         os.makedirs(assets_path, exist_ok=True)
 
@@ -325,20 +289,12 @@ def main():
         logger.warning("Analysis finished, but no results were generated.")
         return
 
-    if args.csv:
-        reporter = CsvReportGenerator(results_data)
-    else:
-        reporter = HtmlReportGenerator(results_data)
-    
+    reporter = CsvReportGenerator(results_data) if args.csv else HtmlReportGenerator(results_data)
     reporter.generate(report_path)
     logger.info(f"Report saved to: {report_path}")
-    
-    console_reporter = ConsoleReportGenerator(results_data)
-    console_reporter.generate()
-    
-    runner.write_logs(results_data)
 
-    logger.info(f"\nAnalysis complete. All outputs saved in directory: {output_dir}")
+    ConsoleReportGenerator(results_data).generate()
+    runner.write_logs(results_data)
 
 if __name__ == "__main__":
     main()
