@@ -1,4 +1,4 @@
-# WhatsMyBitrate - Audio Quality Analyzer v0.3
+# WhatsMyBitrate - Audio Quality Analyzer v0.4
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/1c6e089a-b934-41f3-84fb-e07855121b54" alt="Spectrogram Example" width="700">
