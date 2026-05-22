@@ -163,3 +163,7 @@ Run with the `-l` flag to generate a detailed log file inside the report directo
 
 ## License
 This project is licensed under the **MIT License**.
+
+## Support
+Feel free to submit any issues or requests under "issues".
+You can [buy me a coffee](https://buymeacoffee.com/orencohen) as well to support me or [whatsmybitrate.com](https://whatsmybitrate.com)
