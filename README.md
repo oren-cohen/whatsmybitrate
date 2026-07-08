@@ -166,4 +166,6 @@ This project is licensed under the **MIT License**.
 
 ## Support
 Feel free to submit any issues or requests under "issues".
-You can [buy me a coffee](https://buymeacoffee.com/orencohen) as well to support me or [whatsmybitrate.com](https://whatsmybitrate.com)
+[whatsmybitrate.com](https://whatsmybitrate.com)
+
+[Find your track's genre with AI - FindGenre](https://findgenre.com)
